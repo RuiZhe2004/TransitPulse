@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>TransitPulse Operator Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: operator console — fixed nav rail on the left (top strip on phones), one working view at a time, live map as the anchor */
+:root{
+  --bg:#EEF2F4; --surface:#FFFFFF; --sunk:#F5F8F9; --ink:#13222C; --muted:#5A6B77; --line:#D6DEE3;
+  --accent:#0E6774; --accent-ink:#FFFFFF; --accent-weak:#DAEDF0;
+  --signal:#E3A21A; --signal-weak:#FBF0D6;
+  --ok:#2C7A4B; --ok-weak:#DFF1E6; --warn:#B86E00; --warn-weak:#FCEBD0; --crit:#BE3A2D; --crit-weak:#F9E0DC;
+  --map-land:#E4EAE6; --map-block:#D3DCD6; --map-water:#C9DEE6; --map-road:#FFFFFF;
+  --display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D151B; --surface:#15212A; --sunk:#111B22; --ink:#E4ECF1; --muted:#90A2AE; --line:#253540;
+  --accent:#4DB4C2; --accent-ink:#06242A; --accent-weak:#123840;
+  --signal:#F0B43A; --signal-weak:#3A2E12;
+  --ok:#5BC189; --ok-weak:#15342A; --warn:#E6A43C; --warn-weak:#3A2A10; --crit:#EE6B5D; --crit-weak:#3E1C18;
+  --map-land:#18252D; --map-block:#1F2F38; --map-water:#183644; --map-road:#2B3D48; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D151B; --surface:#15212A; --sunk:#111B22; --ink:#E4ECF1; --muted:#90A2AE; --line:#253540;
+  --accent:#4DB4C2; --accent-ink:#06242A; --accent-weak:#123840;
+  --signal:#F0B43A; --signal-weak:#3A2E12;
+  --ok:#5BC189; --ok-weak:#15342A; --warn:#E6A43C; --warn-weak:#3A2A10; --crit:#EE6B5D; --crit-weak:#3E1C18;
+  --map-land:#18252D; --map-block:#1F2F38; --map-water:#183644; --map-road:#2B3D48; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:.005em}
+h2{font-size:22px;font-weight:700}
+h3{font-size:16px;font-weight:600}
+.label{font-family:var(--display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.muted{color:var(--muted)}
+small{font-size:12px}
+
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100%}
+.rail{background:var(--surface);border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--accent);display:grid;place-items:center;flex:none}
+.brand-name{font-family:var(--display);font-weight:700;font-size:20px;line-height:1}
+.brand-sub{font-size:11px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-group{font-family:var(--display);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px}
+.nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;font-weight:500;color:var(--ink)}
+.nav button:hover{background:var(--sunk)}
+.nav button[aria-current="page"]{background:var(--accent-weak);color:var(--accent);font-weight:600}
+.nav button:focus-visible{outline:2px solid var(--accent)}
+.nav .count{margin-left:auto;font-family:var(--mono);font-size:11px;background:var(--crit);color:#fff;border-radius:10px;padding:0 6px;line-height:18px}
+.nav svg{width:16px;height:16px;flex:none}
+.rail-foot{margin-top:auto;font-size:12px;color:var(--muted);padding:0 6px;display:flex;flex-direction:column;gap:6px}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:1200;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+  padding-block:10px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.route-chip{display:flex;align-items:center;gap:8px;font-family:var(--display);font-weight:600;font-size:16px}
+.route-badge{background:var(--signal);color:#1C1503;font-family:var(--display);font-weight:700;padding:1px 8px;border-radius:4px;font-size:15px}
+.clock{font-family:var(--mono);font-size:15px;font-weight:500}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ok);font-weight:600}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.topbar .spacer{flex:1}
+.demo-tag{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);background:var(--warn-weak);padding:3px 8px;border-radius:4px}
+.btn{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 12px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:3px 9px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg button{all:unset;cursor:pointer;padding:5px 11px;font-size:13px;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+.view{padding-block:20px 48px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+.view-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+.view-head p{margin:4px 0 0;color:var(--muted);max-width:70ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel-b{padding:14px}
+.grid{display:grid;gap:16px}
+.g-live{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+.g-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.kpi{background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .v{font-family:var(--display);font-size:30px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--muted)}
+.kpi.crit .v{color:var(--crit)} .kpi.warn .v{color:var(--warn)}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:20px;white-space:nowrap;line-height:19px}
+.pill.ok{background:var(--ok-weak);color:var(--ok)} .pill.warn{background:var(--warn-weak);color:var(--warn)}
+.pill.crit{background:var(--crit-weak);color:var(--crit)} .pill.info{background:var(--accent-weak);color:var(--accent)}
+.pill.neutral{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
+.pill.sig{background:var(--signal-weak);color:var(--warn)}
+
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--display);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tbody tr.sel{background:var(--accent-weak)}
+tbody tr.click{cursor:pointer} tbody tr.click:hover{background:var(--sunk)}
+.stop-id{font-family:var(--mono);font-size:11px;color:var(--muted);margin-right:6px}
+
+/* map */
+.map-wrap{position:relative;overflow:hidden;border-radius:0 0 var(--r) var(--r)}
+#map{display:block;width:100%;height:auto;background:var(--map-land)}
+.map-legend{z-index:800;position:absolute;left:10px;bottom:10px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:11.5px;display:flex;flex-wrap:wrap;gap:4px 12px;max-width:calc(100% - 20px)}
+.map-legend span{display:inline-flex;align-items:center;gap:5px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.bus-g{transition:transform .4s linear}
+.stop-g{cursor:pointer}
+.map-lbl{font-family:var(--display);font-size:18px;font-weight:600;fill:#13222C;paint-order:stroke;stroke:#FFFFFF;stroke-width:4.5px;stroke-linejoin:round;pointer-events:none}
+.map-num{fill:#0E6774;font-family:var(--mono);font-size:16px;font-weight:600}
+#stopTable th{position:sticky;top:0;background:var(--surface);z-index:1}
+
+.buses{display:grid;gap:10px}
+.bus-card{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--sunk)}
+.bus-card .id{font-family:var(--display);font-weight:700;font-size:16px}
+.bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;grid-column:1/-1}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .4s}
+.bar.hi i{background:var(--warn)} .bar.full i{background:var(--crit)}
+
+.feed{display:flex;flex-direction:column;max-height:300px;overflow-y:auto}
+.feed-item{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.feed-item:last-child{border-bottom:0}
+.feed-item time{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding-top:1px}
+.sev{border-left:3px solid var(--line);padding-left:8px}
+.sev.crit{border-color:var(--crit)} .sev.warn{border-color:var(--warn)} .sev.ok{border-color:var(--ok)} .sev.info{border-color:var(--accent)}
+
+/* phones */
+.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;align-items:start}
+.phone{border:1px solid var(--line);border-radius:28px;background:var(--surface);padding:10px;max-width:330px;width:100%;justify-self:center;box-shadow:0 1px 0 var(--line)}
+.phone-screen{border-radius:20px;background:var(--sunk);overflow:hidden;min-height:540px;display:flex;flex-direction:column}
+.phone-top{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:8px 16px 4px;color:var(--muted)}
+.app-h{padding:8px 16px 12px;display:flex;flex-direction:column;gap:2px}
+.app-h h3{font-size:19px}
+.app-body{padding:0 14px 16px;display:flex;flex-direction:column;gap:10px;flex:1}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;font-weight:600;color:var(--muted)}
+.field select,.field input{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.big-btn{all:unset;cursor:pointer;text-align:center;background:var(--accent);color:var(--accent-ink);font-family:var(--display);font-weight:700;font-size:17px;padding:13px;border-radius:10px}
+.big-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.big-btn.alt{background:var(--surface);color:var(--crit);border:1px solid var(--line)}
+.big-btn:disabled{opacity:.5}
+.note{font-size:11.5px;color:var(--muted)}
+.verified{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ok);font-weight:600}
+.qr{width:120px;height:120px;align-self:center;image-rendering:pixelated}
+
+/* kiosk */
+.kiosk{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+.kiosk-screen{background:#0B1A21;color:#F4D27A;padding:16px;font-family:var(--mono);display:flex;flex-direction:column;gap:8px;min-width:0}
+.kiosk-screen .row{display:flex;justify-content:space-between;gap:8px;font-size:14px;border-bottom:1px dashed #2A414B;padding-bottom:6px}
+.kiosk-screen .hdr{color:#8FB9C4;font-size:11px;letter-spacing:.1em}
+.kiosk-btns{background:var(--sunk);padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.phys-btn{all:unset;cursor:pointer;display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+.phys-btn .knob{width:46px;height:46px;border-radius:50%;background:var(--signal);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);flex:none;display:grid;place-items:center;font-family:var(--display);font-weight:700;color:#1C1503}
+.phys-btn[aria-pressed="true"] .knob{background:var(--ok);color:#fff}
+.phys-btn:focus-visible{outline:2px solid var(--accent)}
+
+/* cv */
+.cams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.cam{position:relative;border-radius:6px;overflow:hidden;background:#0B1418;aspect-ratio:16/10;max-width:100%}
+.cam canvas{width:100%;height:100%;display:block}
+.cam-hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:8px 10px;font-family:var(--mono);font-size:11px;color:#E7F3F6}
+.cam-hud .tl{display:flex;justify-content:space-between;gap:6px;text-shadow:0 1px 2px #000}
+.cam-hud .rec{color:#FF6B5E}
+.cam-hud .count{align-self:flex-start;background:rgba(5,15,19,.78);border-radius:4px;padding:4px 8px;font-size:13px;color:#fff}
+.cam-hud .count b{font-family:var(--display);font-size:20px}
+.cam-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 2px 0}
+
+/* decision */
+.opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.opt.best{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.opt.infeasible{opacity:.72}
+.opt-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;grid-column:1/-1}
+.m{background:var(--sunk);border-radius:6px;padding:6px 8px;min-width:0}
+.m .k{font-size:11px;color:var(--muted)} .m .v{font-family:var(--mono);font-size:14px;font-weight:500}
+.checks{display:flex;flex-wrap:wrap;gap:6px;grid-column:1/-1}
+.chk{font-size:12px;display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:4px;border:1px solid var(--line);background:var(--sunk)}
+.chk.y::before{content:"✓";color:var(--ok);font-weight:700}
+.chk.n::before{content:"✕";color:var(--crit);font-weight:700}
+
+/* planner */
+.levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.level{padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);display:flex;flex-direction:column;gap:6px}
+.level .tier{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.gantt{display:grid;grid-template-columns:110px 1fr;font-size:12px;min-width:640px}
+.gantt .who{padding:6px 0;border-bottom:1px solid var(--line);font-weight:600;display:flex;flex-direction:column}
+.gantt .who small{font-weight:400;color:var(--muted)}
+.gantt .lane{position:relative;border-bottom:1px solid var(--line);background-image:linear-gradient(to right,var(--line) 1px,transparent 1px);background-size:calc(100%/16) 100%}
+.duty{position:absolute;top:8px;bottom:8px;border-radius:4px;background:var(--accent);color:var(--accent-ink);font-size:10.5px;font-family:var(--mono);padding:0 5px;display:flex;align-items:center;overflow:hidden;white-space:nowrap}
+.duty.brk{background:repeating-linear-gradient(45deg,var(--line),var(--line) 3px,var(--sunk) 3px,var(--sunk) 6px);color:var(--muted)}
+.duty.new{background:var(--signal);color:#1C1503;outline:2px dashed var(--warn);outline-offset:1px}
+.duty.shift{background:var(--ok);color:#fff}
+.gantt .axis{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--muted);padding-top:4px}
+.scen-row{cursor:pointer}
+.scen-row[aria-selected="true"]{background:var(--accent-weak)}
+.chart svg{width:100%;height:auto;display:block}
+
+.heat{display:grid;grid-template-columns:44px repeat(17,minmax(0,1fr));gap:2px;font-size:10.5px;font-family:var(--mono);min-width:560px}
+.heat div{aspect-ratio:1/1;border-radius:2px;max-width:100%}
+.heat .lbl{aspect-ratio:auto;color:var(--muted);display:flex;align-items:center}
+.heat .hl{aspect-ratio:auto;color:var(--muted);text-align:center}
+
+.zones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.zone{border-radius:6px;padding:10px;min-height:84px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid var(--line)}
+.zone b{font-family:var(--display);font-size:15px}
+.zone .idx{font-family:var(--mono);font-size:20px;font-weight:500}
+
+/* driver */
+.driver{background:#0A1217;color:#E8F0F3;border-radius:14px;padding:16px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;border:6px solid #26333A}
+.drv-stop{display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;padding:12px;border-radius:10px;background:#13212A;margin-bottom:8px}
+.drv-stop .eta{font-family:var(--mono);font-size:18px;color:#9FC3CD}
+.drv-stop .nm{font-family:var(--display);font-size:20px;font-weight:600}
+.drv-stop.req{background:#3A2B05;box-shadow:inset 0 0 0 2px #F0B43A}
+.drv-stop.req .flag{background:#F0B43A;color:#1C1503;font-family:var(--display);font-weight:700;padding:6px 10px;border-radius:6px;font-size:15px;text-align:center}
+.drv-side{display:flex;flex-direction:column;gap:12px}
+.drv-box{background:#13212A;border-radius:10px;padding:12px}
+.drv-box .label{color:#8FA9B4}
+.drv-ack{all:unset;cursor:pointer;text-align:center;background:#F0B43A;color:#1C1503;font-family:var(--display);font-weight:700;font-size:20px;padding:16px;border-radius:10px}
+.drv-ack:focus-visible{outline:3px solid #fff}
+
+.toast{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 32px))}
+.toast div{background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.18);animation:tin .25s ease-out}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+.policy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.policy ul{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.explain{background:var(--sunk);border-radius:6px;padding:10px 12px;font-size:13px}
+.recon{display:grid;grid-template-columns:repeat(5,auto);gap:4px 10px;align-items:center;justify-content:start;font-family:var(--mono);font-size:13px}
+.recon b{font-family:var(--display);font-size:22px}
+
+@media (max-width:1100px){
+  .g-live{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g-4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .opt-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  .rail{position:static;height:auto;flex-direction:column;border-right:0;border-bottom:1px solid var(--line);padding:12px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));gap:8px}
+  .nav{flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:4px}
+  .nav-group,.rail-foot{display:none}
+  .nav button{white-space:nowrap}
+  .g-2,.g-3,.levels,.policy,.kiosk,.driver,.cams{grid-template-columns:1fr}
+  .zones{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .topbar{position:static}
+}
+@media (max-width:520px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g-4{grid-template-columns:1fr}
+  .opt-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .opt{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app">
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--accent-ink)"><path d="M2 13h4l2-6 4 12 3-9 2 3h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div><div class="brand-name">TransitPulse</div><div class="brand-sub">Township bus coordination</div></div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Sections"></nav>
+    <div class="rail-foot">
+      <div><span class="label">Signed in</span><br>Dispatcher · Shift B</div>
+      <div>Operator retains dispatch, driver and service decisions. TransitPulse recommends; a dispatcher approves.</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="route-chip"><span class="route-badge">T815</span> MRT Phileo Damansara – Universiti Malaya</div>
+      <span class="clock" id="clock">15:20</span>
+      <span class="live"><i></i>Live</span>
+      <span class="spacer"></span>
+      <span class="demo-tag">Illustrative data</span>
+      <div class="seg" role="group" aria-label="Simulation speed">
+        <button type="button" data-speed="0" aria-pressed="false">Pause</button>
+        <button type="button" data-speed="1" aria-pressed="true" title="1 second on screen = 1 second of service">Real time</button>
+        <button type="button" data-speed="10" aria-pressed="false" title="1 second on screen = 10 seconds of service">10×</button>
+        <button type="button" data-speed="60" aria-pressed="false" title="1 second on screen = 1 minute of service">60×</button>
+      </div>
+      <button class="btn ghost sm" id="themeBtn" type="button">Theme</button>
+    </header>
+
+    <!-- LIVE OPS -->
+    <section class="view" id="v-live" data-view>
+      <div class="view-head">
+        <div><h2>Live operations</h2><p>Where passengers are waiting, which buses can take them, and where people are likely to be left behind.</p></div>
+        <div class="inline"><span class="label">Headway target</span><span class="mono">15 min (peak)</span></div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="grid g-live">
+        <div class="panel">
+          <div class="panel-h"><h3>Route map</h3><span class="muted" style="font-size:12px">All 27 stops at official GPS positions · halo = waiting demand · click a stop</span></div>
+          <div class="map-wrap">
+            <svg id="map" viewBox="0 0 1446 1097" role="img" aria-label="Map of route T815 with stops and bus positions"></svg>
+            <div class="map-legend">
+              <span><i class="dot" style="background:var(--ok)"></i>Enough space</span>
+              <span><i class="dot" style="background:var(--warn)"></i>Tight</span>
+              <span><i class="dot" style="background:var(--crit)"></i>Shortfall predicted</span>
+              <span><i class="dot" style="background:#F0B43A;box-shadow:0 0 0 2px var(--ok)"></i>Yellow centre = boarding request</span>
+              <span><svg width="14" height="14" viewBox="-26 -26 52 52" aria-hidden="true"><circle r="24" fill="var(--accent)"/><rect x="-11" y="-14" width="22" height="25" rx="4" fill="#FFFFFF"/><rect x="-8" y="-11" width="16" height="9" rx="1.5" fill="var(--accent)"/></svg>Bus (colour = how full)</span>
+            </div>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="panel">
+            <div class="panel-h"><h3>Buses in service</h3><span class="pill info" id="fleetPill">3 of 4 vehicles</span></div>
+            <div class="panel-b buses" id="buses"></div>
+          </div>
+          <div class="panel" id="stopDetail"></div>
+        </div>
+      </div>
+      <div class="grid g-live">
+        <div class="panel">
+          <div class="panel-h"><h3>Stop demand and boarding-shortfall prediction</h3><span class="muted" style="font-size:12px">Registrations and observed queues reconciled to avoid double-counting</span></div>
+          <div class="tbl-wrap" style="max-height:540px;overflow-y:auto"><table id="stopTable"></table></div>
+        </div>
+        <div class="stack" style="gap:16px;min-width:0">
+        <div class="panel">
+          <div class="panel-h"><h3>Event feed</h3><button class="btn sm" type="button" data-goto="decide">Open decision support</button></div>
+          <div class="feed" id="feed"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h3>Next bus trips</h3><span class="muted" style="font-size:12px">Departures from S1 MRT Phileo Damansara · every 15 min at peak</span></div>
+          <div class="tbl-wrap"><table id="nextTrips"></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h3>Suggested next trips</h3><span class="pill info">Dispatcher approves</span></div>
+          <div class="panel-b stack" id="suggTrips"></div>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PASSENGER -->
+    <section class="view" id="v-passenger" data-view hidden>
+      <div class="view-head">
+        <div><h2>Passenger app</h2><p>Advance journey registration, “I’m waiting here” boarding requests and requests for proposed supplementary trips. Actions here feed the live map and driver display.</p></div>
+        <span class="verified">● Mobile verified · +60 1•-•••• 4821</span>
+      </div>
+      <div class="phones">
+        <div class="phone"><div class="phone-screen">
+          <div class="phone-top"><span id="ph1clock">15:20</span><span>4G ▮▮▮</span></div>
+          <div class="app-h"><span class="label">Plan ahead</span><h3>Register a journey</h3></div>
+          <form class="app-body" id="regForm">
+            <div class="field"><label for="regRoute">Route</label><select id="regRoute"><option>T815 · MRT Phileo Damansara – Universiti Malaya</option></select></div>
+            <div class="row2">
+              <div class="field"><label for="regFrom">Boarding stop</label><select id="regFrom"></select></div>
+              <div class="field"><label for="regTo">Destination</label><select id="regTo"></select></div>
+            </div>
+            <div class="row2">
+              <div class="field"><label for="regWin">Departure window</label><select id="regWin"><option>16:00–16:30</option><option>16:30–17:00</option><option>17:00–17:30</option><option>Tomorrow 07:00–07:30</option></select></div>
+              <div class="field"><label for="regGroup">Group size</label><input id="regGroup" type="number" min="1" max="8" value="2"></div>
+            </div>
+            <button class="big-btn" type="submit">Register journey</button>
+            <p class="note">Registering helps the operator plan capacity. It does not reserve a seat or guarantee boarding. Cancel any time, no penalty.</p>
+            <div class="card" id="regList"><span class="label">Your registrations</span><span class="muted">None yet</span></div>
+          </form>
+        </div></div>
+
+        <div class="phone"><div class="phone-screen">
+          <div class="phone-top"><span id="ph2clock">15:20</span><span>4G ▮▮▮</span></div>
+          <div class="app-h"><span class="label">At the stop</span><h3>I’m waiting here</h3></div>
+          <div class="app-body">
+            <div class="field"><label for="reqStop">Stop (or scan the QR on the shelter)</label><select id="reqStop"></select></div>
+            <div class="field"><label for="reqRoute">Route</label><select id="reqRoute"><option>T815 · towards Universiti Malaya</option></select></div>
+            <button class="big-btn" id="reqBtn" type="button">Send boarding request</button>
+            <div class="card" id="reqStatus">
+              <span class="label">Request status</span>
+              <span class="muted">No active request. Ordinary walk-up boarding is always available.</span>
+            </div>
+            <p class="note">Requests end automatically when you board, cancel, or after 30 minutes. No penalties for boarding requests.</p>
+          </div>
+        </div></div>
+
+        <div class="phone"><div class="phone-screen">
+          <div class="phone-top"><span id="ph3clock">15:20</span><span>4G ▮▮▮</span></div>
+          <div class="app-h"><span class="label">Extra service</span><h3>Supplementary trips</h3></div>
+          <div class="app-body" id="suppApp"></div>
+        </div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Accessible stop interface</h3><span class="muted" style="font-size:12px">Proposed shelter display and physical request button for passengers without smartphones · S13 Pusat Sukan UM</span></div>
+        <div class="kiosk">
+          <div class="kiosk-screen" id="kiosk"></div>
+          <div class="kiosk-btns">
+            <button class="phys-btn" type="button" id="kioskBtn" aria-pressed="false"><span class="knob" style="font-size:12px">T815</span><span><b>Press for route T815</b><br><small class="muted">Signals the next bus driver that someone is waiting</small></span></button>
+            <p class="note">Audio announcement and tactile label on the button. Ordinary walk-up boarding remains available.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CROWD VISION -->
+    <section class="view" id="v-vision" data-view hidden>
+      <div class="view-head">
+        <div><h2>Crowd estimation</h2><p>Counts people inside each stop’s marked waiting area. No facial recognition and no identity matching. Route intentions come from boarding requests and registrations, not from the camera.</p></div>
+        <span class="pill ok">Permissioned footage · on-device counting</span>
+      </div>
+      <div class="cams" id="cams"></div>
+      <div class="panel">
+        <div class="panel-h"><h3>Person detection model accuracy</h3><span class="pill info">YOLO11n · pretrained · 960 px input</span></div>
+        <div class="panel-b stack">
+          <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+            <div class="kpi"><span class="label">Precision</span><span class="v">81.5%</span><span class="s">of detections are real people</span></div>
+            <div class="kpi"><span class="label">Recall</span><span class="v">64.3%</span><span class="s">of people in a photo are found</span></div>
+            <div class="kpi"><span class="label">mAP50</span><span class="v">73.5%</span><span class="s">overall detection score</span></div>
+            <div class="kpi"><span class="label">mAP50-95</span><span class="v">48.2%</span><span class="s">strict box-fit score</span></div>
+          </div>
+          <p class="muted" style="margin:0;max-width:80ch">Tested on 329 held-out street and outdoor photos containing 1,194 people (Open Images V7, CC BY 2.0). Speed is about 0.1 s per image on a laptop CPU. Because roughly 1 in 3 people can be missed in a crowd, camera counts are shown as a range and combined with boarding requests and registrations rather than used alone.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>How a stop’s demand is reconciled</h3><select id="reconStop" aria-label="Stop to explain" class="btn sm"></select></div>
+        <div class="panel-b stack" id="recon"></div>
+      </div>
+    </section>
+
+    <!-- DECISION SUPPORT -->
+    <section class="view" id="v-decide" data-view hidden>
+      <div class="view-head">
+        <div><h2>Operational decision support</h2><p>Responses ranked for the stop with the largest predicted shortfall. Each is checked against vehicle, driver, duty and route rules. Nothing happens until a dispatcher approves.</p></div>
+        <div class="inline"><label class="label" for="decStop">Stop</label><select id="decStop" class="btn sm"></select><button class="btn sm" type="button" id="recalc">Recalculate</button></div>
+      </div>
+      <div class="panel"><div class="panel-b" id="decSummary"></div></div>
+      <div class="stack" id="options"></div>
+      <div class="panel">
+        <div class="panel-h"><h3>Approval log</h3></div>
+        <div class="tbl-wrap"><table id="approvals"></table></div>
+      </div>
+    </section>
+
+    <!-- PLANNER -->
+    <section class="view" id="v-planner" data-view hidden>
+      <div class="view-head">
+        <div><h2>Capacity and staffing planner</h2><p>Afternoon peak on route T815 repeatedly leaves passengers behind. Compare what the current fleet and roster can do before asking for more.</p></div>
+        <span class="pill neutral">Weekdays · 14:00–19:00 · last 4 weeks</span>
+      </div>
+      <div class="levels">
+        <div class="level"><span class="tier">Level 1</span><h3>Use existing resources better</h3><p class="muted" style="margin:0">Departure spacing, vehicle assignment and driver duties, keeping breaks and minimum coverage.</p><span class="pill ok">Best feasible: wait −2.4 min, no new cost</span></div>
+        <div class="level"><span class="tier">Level 2</span><h3>Target the crowded section</h3><p class="muted" style="margin:0">Approved short supplementary trips sized to the queue, coordinated with other services.</p><span class="pill warn">1 van + 1.5 driver-hours/day</span></div>
+        <div class="level"><span class="tier">Level 3</span><h3>Add funded capacity</h3><p class="muted" style="margin:0">Additional vehicles, driver duties or contracted services where the roster runs out.</p><span class="pill crit">Gap: 2 buses, 6 driver-hours/day</span></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Scenario comparison</h3><span class="muted" style="font-size:12px">Select a scenario to see its roster</span></div>
+        <div class="tbl-wrap"><table id="scen"></table></div>
+      </div>
+      <div class="grid g-2">
+        <div class="panel">
+          <div class="panel-h"><h3>Demand vs offered capacity</h3><span class="muted" style="font-size:12px" id="chartNote"></span></div>
+          <div class="panel-b chart" id="capChart"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h3>Resource check</h3></div>
+          <div class="panel-b stack" id="resCheck"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Driver duties and vehicle assignments</h3><span class="inline" style="font-size:12px"><span class="pill info">Duty</span><span class="pill neutral">Break</span><span class="pill ok">Shifted</span><span class="pill sig">New or extended</span></span></div>
+        <div class="panel-b tbl-wrap"><div id="gantt"></div></div>
+      </div>
+    </section>
+
+    <!-- RESERVATIONS -->
+    <section class="view" id="v-res" data-view hidden>
+      <div class="view-head">
+        <div><h2>Supplementary-trip reservations</h2><p>Passengers request places on proposed trips. A request becomes a confirmed reservation only after the operator commits a vehicle and a driver.</p></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Proposed and confirmed trips</h3></div>
+        <div class="tbl-wrap"><table id="trips"></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Reservation records</h3><div class="seg" role="group" aria-label="Filter records" id="resFilter">
+          <button type="button" aria-pressed="true" data-f="all">All</button><button type="button" aria-pressed="false" data-f="noshow">No-shows</button><button type="button" aria-pressed="false" data-f="dispute">Disputes</button></div></div>
+        <div class="tbl-wrap"><table id="resTable"></table></div>
+      </div>
+      <div class="policy">
+        <div class="panel panel-b"><h3>Travel intentions and boarding requests</h3><ul class="muted"><li>Cancel any time in one tap</li><li>Expire automatically after boarding or 30 minutes</li><li>No no-show penalties</li></ul></div>
+        <div class="panel panel-b"><h3>Confirmed supplementary reservations</h3><ul class="muted"><li>Reminder 30 and 10 minutes before departure</li><li>Free cancellation until 15 minutes before</li><li>3 unjustified no-shows in 30 days pauses new bookings for 7 days</li><li>Operator cancellations, denied boarding and system failures never count</li><li>Passengers can dispute any record</li></ul></div>
+      </div>
+    </section>
+
+    <!-- SERVICE GAPS -->
+    <section class="view" id="v-gaps" data-view hidden>
+      <div class="view-head">
+        <div><h2>Service-gap monitoring</h2><p>Possible missed pickups, repeated denied boarding and persistent shortages, checked against occupancy and disruption data before reaching a reviewer.</p></div>
+        <div class="seg" role="group" aria-label="Status filter" id="gapFilter"><button type="button" aria-pressed="true" data-f="open">Open</button><button type="button" aria-pressed="false" data-f="all">All</button></div>
+      </div>
+      <div class="kpis" id="gapKpis" style="grid-template-columns:repeat(4,minmax(0,1fr))"></div>
+      <div class="panel"><div class="tbl-wrap"><table id="gapTable"></table></div></div>
+    </section>
+
+    <!-- TOWNSHIP PLANNING -->
+    <section class="view" id="v-plan" data-view hidden>
+      <div class="view-head">
+        <div><h2>Township planning</h2><p>Recurring demand and unmet need by precinct, to guide feeder services, shelters and walking connections to stops.</p></div>
+        <span class="pill neutral">Pilot period · 8 weeks</span>
+      </div>
+      <div class="grid g-2">
+        <div class="panel">
+          <div class="panel-h"><h3>Unmet-need index by precinct</h3><span class="muted" style="font-size:12px">0 = well served · 100 = severe</span></div>
+          <div class="panel-b"><div class="zones" id="zones"></div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h3>Recommended investments</h3></div>
+          <div class="tbl-wrap"><table id="invest"></table></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Recurring demand · boardings per hour, whole route</h3><span class="muted" style="font-size:12px">Average of pilot weeks</span></div>
+        <div class="panel-b tbl-wrap"><div class="heat" id="heat"></div></div>
+      </div>
+    </section>
+
+    <!-- DRIVER -->
+    <section class="view" id="v-driver" data-view hidden>
+      <div class="view-head">
+        <div><h2>Driver display</h2><p>Onboard screen shown to the driver. It highlights upcoming stops with active boarding requests and needs one tap at most.</p></div>
+        <div class="inline"><label class="label" for="drvBus">Vehicle</label><select id="drvBus" class="btn sm"></select></div>
+      </div>
+      <div class="driver" id="driver"></div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" aria-live="polite"></div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fmtT=m=>{m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(Math.floor(m%60)).padStart(2,'0')};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let seed=7; const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};
+
+/* ---------------- data ---------------- */
+const STOPS=[
+ {id:'S1',code:'PJ823',name:'MRT Phileo Damansara Pintu A',x:379.4,y:388.2,rate:.5,alight:.6,w:6,regs:5,cam:true,l:[366,368,'end']},
+ {id:'S2',code:'PJ240',name:'Tiara Damansara (Utara)',x:204.1,y:429.8,rate:.12,alight:.05,w:2,regs:1,l:[219,437,'start']},
+ {id:'S3',code:'PJ241',name:'Tiara Damansara (Selatan)',x:176.0,y:554.0,rate:.12,alight:.05,w:2,regs:1,l:[193,557,'start']},
+ {id:'S4',code:'PJ236',name:'UIA PJ (Barat)',x:173.2,y:749.2,rate:.2,alight:.08,w:3,regs:2,l:[192,753,'start']},
+ {id:'S5',code:'PJ237',name:'UIA PJ (Selatan)',x:208.5,y:843.7,rate:.2,alight:.08,w:3,regs:2,l:[212,874,'start']},
+ {id:'S6',code:'PJ245',name:'SMK Sultan Abd Samad (Timur)',x:490.0,y:853.8,rate:.4,alight:.05,w:12,regs:14,cam:true,school:true,circuit:true,l:[476,832,'end']},
+ {id:'S7',code:'PJ247',name:'MAHSA University (Timur)',x:704.9,y:925.5,rate:.2,alight:.12,w:3,regs:2,l:[720,944,'start']},
+ {id:'S8',code:'KL1105',name:'Fakulti Perniagaan dan Perakaunan',x:915.9,y:861.8,rate:.15,alight:.15,w:2,regs:1,l:[902,882,'end']},
+ {id:'S9',code:'KL1109',name:'Perpustakaan UM',x:880.1,y:732.8,rate:.4,alight:.2,w:6,regs:4,cam:true,rain:true,circuit:true,eve:true,l:[870,737,'end']},
+ {id:'S10',code:'KL1108',name:'Pusat Asasi Sains (Dari Stn)',x:1101.6,y:706.3,rate:.15,alight:.1,w:2,regs:1,l:[1102,682,'middle']},
+ {id:'S11',code:'KL2342',name:'Institut Pengajian Siswazah',x:1188.2,y:570.6,rate:.1,alight:.08,w:1,regs:1,l:[1173,577,'end']},
+ {id:'S12',code:'KL2343',name:'Kolej Kediaman Kelima',x:1173.8,y:470.7,rate:.15,alight:.12,w:2,regs:1,l:[1157,477,'end']},
+ {id:'S13',code:'KL2344',name:'Pusat Sukan UM',x:1192.9,y:347.2,rate:.02,alight:.05,w:1,regs:0,quiet:true,cam:true,l:[1177,352,'end']},
+ {id:'S14',code:'KL2345',name:'Kolej Kediaman Kesepuluh',x:739.0,y:324.1,rate:.15,alight:.12,w:2,regs:1,l:[755,318,'start']},
+ {id:'S15',code:'KL2346',name:'Fakulti Sains Komputer',x:727.9,y:426.7,rate:.15,alight:.12,w:2,regs:1,l:[715,430,'end']},
+ {id:'S16',code:'KL2347',name:'Fakulti Pengajian Melayu',x:790.5,y:497.9,rate:.1,alight:.1,w:1,regs:1,l:[806,500,'start']},
+ {id:'S17',code:'KL2348',name:'(M1) Kolej Kediaman Keempat',x:787.6,y:577.4,rate:.15,alight:.1,w:2,regs:1,l:[803,585,'start']},
+ {id:'S18',code:'KL1109',name:'Perpustakaan UM (2nd pass)',x:880.1,y:732.8,rate:.2,alight:.15,w:3,regs:2,rep:'S9'},
+ {id:'S19',code:'KL1108',name:'Pusat Asasi Sains (2nd pass)',x:1101.6,y:706.3,rate:.08,alight:.08,w:1,regs:0,rep:'S10'},
+ {id:'S20',code:'KL2137',name:'Fakulti Undang-Undang',x:1230.0,y:842.7,rate:.12,alight:.08,w:2,regs:1,l:[1222,840,'end']},
+ {id:'S21',code:'KL1103',name:'Kolej Kediaman Pertama',x:1150.4,y:868.9,rate:.15,alight:.08,w:2,regs:1,l:[1152,904,'middle']},
+ {id:'S22',code:'KL1104',name:'Fakulti Kejuruteraan (Utara)',x:975.4,y:825.5,rate:.3,alight:.08,w:4,regs:5,circuit:true,eve:true,l:[985,812,'start']},
+ {id:'S23',code:'KL1105',name:'Fakulti Perniagaan dan Perakaunan (2nd pass)',x:919.0,y:860.0,rate:.12,alight:.05,w:2,regs:1,rep:'S8'},
+ {id:'S24',code:'PJ260',name:'MAHSA University (Barat)',x:626.7,y:876.1,rate:.15,alight:.12,w:2,regs:1,l:[626,908,'middle']},
+ {id:'S25',code:'PJ263',name:'SMK Sultan Abd Samad (Barat)',x:487.1,y:864.1,rate:.1,alight:.1,w:1,regs:0,l:[500,892,'start']},
+ {id:'S26',code:'PJ239',name:'Pusat Asasi Mahallah Aisyah UIA',x:403.4,y:804.9,rate:.15,alight:.12,w:2,regs:1,l:[386,808,'end']},
+ {id:'S27',code:'PJ619',name:'Eastin Hotel',x:386.2,y:392.3,rate:.08,alight:.15,w:1,regs:0,l:[398,420,'start']},
+];
+const ROUTE=['S1',[372.4,384.3],[368.7,378.6],[340.7,367.9],[262.2,331.8],[205.9,426.0],'S2',[180.2,484.9],[176.4,517.1],[176.0,549.9],'S3',[173.5,744.3],'S4',[165.6,788.9],[163.1,835.1],[170.4,842.4],[204.4,843.5],'S5',[307.2,848.8],[312.9,846.8],[389.1,850.4],[429.9,850.2],[485.6,853.6],'S6',[564.0,858.3],[632.1,871.6],[671.2,892.3],[691.9,909.1],[702.3,922.2],'S7',[729.5,963.2],[737.5,982.4],[740.1,985.9],[749.1,990.6],[780.9,973.6],[837.1,925.6],[879.6,905.9],[896.7,891.4],[912.7,866.8],'S8',[924.1,845.9],[929.5,818.2],[932.0,796.9],[932.5,724.6],[925.6,716.8],[917.7,715.7],[893.6,705.2],[884.4,709.6],[880.2,720.2],[880.1,728.6],'S9',[879.9,753.9],[883.1,783.4],[886.1,791.3],[896.7,805.7],[907.0,811.7],[917.1,815.2],[922.7,815.2],[930.1,811.7],[932.0,796.9],[932.5,724.6],[937.1,715.6],[970.9,700.2],[983.0,698.7],[1044.1,701.7],[1071.4,700.9],[1096.6,705.1],'S10',[1120.2,709.6],[1133.7,709.3],[1179.6,700.3],[1190.1,702.3],[1201.1,709.6],[1211.4,708.4],[1217.4,703.7],[1220.9,692.8],[1222.1,677.9],[1215.7,620.7],[1211.2,605.8],[1198.7,583.9],[1190.6,574.0],'S11',[1175.4,549.4],[1167.0,526.8],[1165.9,512.6],[1172.6,474.7],'S12',[1187.2,413.9],[1193.6,353.7],'S13',[1197.6,279.2],[1196.0,261.1],[1192.9,254.9],[1161.0,233.2],[1158.1,227.8],[1150.6,175.8],[1139.5,143.6],[1115.6,115.3],[1089.4,103.8],[1081.2,102.7],[981.5,106.4],[968.9,110.6],[962.1,114.9],[949.9,131.4],[939.5,178.3],[932.4,196.1],[923.2,208.1],[903.0,220.3],[874.4,242.6],[846.1,272.7],[824.5,290.9],[795.0,299.9],[758.1,305.2],[747.1,310.7],[742.4,317.1],'S14',[723.1,355.9],[705.0,376.6],[699.7,386.3],[699.6,398.3],[703.9,409.1],[712.7,418.4],[724.1,424.8],'S15',[745.2,434.3],[747.7,437.1],[759.7,441.2],[769.9,449.3],[789.3,493.2],'S16',[795.5,515.9],[796.7,530.2],[788.5,573.2],'S17',[777.2,622.3],[778.4,639.1],[781.6,645.6],[793.0,660.6],[860.2,661.4],[864.7,662.9],[881.9,694.8],[888.2,700.6],[880.2,720.2],[880.1,728.6],'S18',[879.9,753.9],[883.1,783.4],[886.1,791.3],[896.7,805.7],[907.0,811.7],[917.1,815.2],[922.7,815.2],[930.1,811.7],[932.0,796.9],[932.5,724.6],[937.1,715.6],[970.9,700.2],[983.0,698.7],[1044.1,701.7],[1071.4,700.9],[1096.6,705.1],'S19',[1120.2,709.6],[1133.7,709.3],[1179.6,700.3],[1190.1,702.3],[1201.1,709.6],[1209.4,718.7],[1220.4,764.2],[1224.9,774.4],[1263.1,796.8],[1282.0,823.4],[1283.4,832.7],[1277.0,839.8],[1252.0,839.1],[1234.6,841.8],'S20',[1201.9,849.8],[1161.7,867.8],[1156.1,868.3],'S21',[1124.5,866.6],[1043.6,830.4],[979.6,825.8],'S22',[942.0,822.8],[930.1,826.4],[925.5,847.1],[921.2,856.4],'S23',[898.7,891.9],[890.2,900.3],[877.5,909.4],[846.0,922.9],[834.7,929.6],[783.2,973.7],[772.1,981.3],[743.6,994.7],[732.2,985.9],[721.5,962.4],[705.2,936.3],[692.0,919.3],[665.5,895.8],[630.7,877.3],'S24',[607.1,869.8],[568.6,865.1],[563.0,866.4],[491.2,864.3],'S25',[401.5,860.1],[403.3,809.1],'S26',[406.1,786.3],[415.9,767.1],[485.0,688.7],[579.4,591.1],[617.9,547.1],[622.0,540.7],[625.9,527.1],[628.0,503.9],[626.6,494.3],[618.7,470.6],[611.6,458.7],[602.0,446.4],[575.1,426.7],[555.7,423.4],[538.2,423.6],[502.4,433.9],[483.5,433.8],[458.6,430.8],[441.2,425.4],[372.4,384.3],[368.7,378.6],[340.7,367.9],[262.2,331.8],[382.6,390.6],'S27',[389.9,394.1]];
+STOPS.forEach(s=>{s.req=Math.round(s.w*.3);s.cv=s.w;s.conf=s.rain?.62:.93;s.left=0;s.denied=0});
+const KIOSK='S13';STOPS.find(s=>s.id===KIOSK).req=1;
+const SMAP=Object.fromEntries(STOPS.map(s=>[s.id,s]));
+const PTS=ROUTE.map(r=>typeof r==='string'?SMAP[r]:{x:r[0],y:r[1]});
+const segs=[];let L=0;
+PTS.forEach((p,i)=>{const b=PTS[(i+1)%PTS.length];const len=Math.hypot(b.x-p.x,b.y-p.y);if(p.id)p.d=L;if(len>0)segs.push({a:p,b,len,start:L});L+=len});
+const LOOP_MIN=45, SPEED=L/LOOP_MIN; // units per sim-minute
+function posAt(d){d=((d%L)+L)%L;const g=segs.find(g=>d>=g.start&&d<g.start+g.len)||segs[0];const t=(d-g.start)/g.len;return[g.a.x+(g.b.x-g.a.x)*t,g.a.y+(g.b.y-g.a.y)*t]}
+
+const BUSES=[
+ {id:'T815-01',plate:'WXV 2381',cap:60,load:38,d:L*.30,driver:'Aminah R.',duty:'D02'},
+ {id:'T815-02',plate:'WXV 2394',cap:60,load:22,d:L*.86,driver:'Kumar S.',duty:'D03'},
+ {id:'T815-03',plate:'WYB 1107',cap:60,load:31,d:L*.97,driver:'Lee W.H.',duty:'D04'},
+];
+const DEPOT={spareBus:1,spareVan:1,standby:['Hafiz M. (D07, standby to 18:00)']};
+const S={t:15*60+20,speed:1,sel:'S6',feed:[],approvals:[],myReq:null,myRegs:[],kiosk:false,supp:{}};
+
+/* ---------------- sim ---------------- */
+function rateAt(s){let r=s.rate;if(s.school&&S.t>=15*60+25&&S.t<16*60)r=2.6;if(s.eve&&S.t>=17*60)r=.9;return r}
+function etaTo(bus,stop){let dd=((stop.d-bus.d)%L+L)%L;if(dd<1)dd+=L;return dd/SPEED}
+function nextBus(stop){return BUSES.map(b=>({b,eta:etaTo(b,stop)})).sort((a,c)=>a.eta-c.eta)}
+function recon(s){const pending=Math.round(s.regs*.7);const base=Math.max(s.cv,s.req);return{base,pending,total:base+pending,overlap:s.cv+s.req+s.regs-(base+pending)}}
+function projectSpace(bus,stop){let load=bus.load;const start=bus.d;let dd=((stop.d-start)%L+L)%L;if(dd<1)dd+=L;
+  for(const s of STOPS){let ds=((s.d-start)%L+L)%L;if(ds<1)ds+=L;if(ds<dd){load-=load*s.alight;load=Math.min(bus.cap,load+Math.min(s.w,bus.cap-load))}}
+  load-=load*stop.alight;return Math.max(0,Math.round(bus.cap-load))}
+function predict(s){const nb=nextBus(s);const first=nb[0];const r=recon(s);const arrivals=rateAt(s)*first.eta;const demand=Math.round(r.total+arrivals);const space=projectSpace(first.b,s);
+  const short=Math.max(0,demand-space);const second=nb[1];const space2=second?projectSpace(second.b,s):0;
+  return{bus:first.b,eta:first.eta,demand,space,short,after2:Math.max(0,short+Math.round(rateAt(s)*(second.eta-first.eta))-space2),eta2:second?second.eta:null}}
+function status(p){return p.short>0?'crit':(p.demand>p.space*.8?'warn':'ok')}
+function log(sev,msg){S.feed.unshift({t:S.t,sev,msg});S.feed=S.feed.slice(0,40)}
+
+function step(dt){
+  S.t+=dt;
+  STOPS.forEach(s=>{const lam=rateAt(s)*dt;let add=0;let p=lam;while(rnd()<p){add++;p-=1;if(p<=0)break}
+    s.w+=add;if(add&&rnd()<.35)s.req++;s.req=Math.min(s.req,s.w+(S.myReq&&S.myReq.stop===s.id?1:0));
+    if(rnd()<.03&&s.regs>0)s.regs--;
+    const noise=s.rain?Math.round((rnd()-.5)*5):Math.round((rnd()-.5)*2);s.cv=Math.max(0,s.w+noise);
+    s.conf=s.rain?clamp(.55+rnd()*.12,0,1):clamp(.9+rnd()*.07,0,1)});
+  BUSES.forEach(b=>{const od=b.d;b.d+=SPEED*dt*(b.hold>0?0:1);if(b.hold>0)b.hold-=dt;
+    STOPS.forEach(s=>{if(Math.floor((b.d-s.d)/L)>Math.floor((od-s.d)/L))serve(b,s)});
+    if(b.temp&&b.d>=b.endD){b.done=true;log('info',`${b.id} completed its relief run and returned to depot`)}});
+  for(let i=BUSES.length-1;i>=0;i--)if(BUSES[i].done)BUSES.splice(i,1);
+}
+function serve(b,s){const al=Math.round(b.load*s.alight);b.load-=al;const space=b.cap-b.load;const board=Math.min(s.w,space);b.load+=board;s.w-=board;
+  s.req=Math.min(s.req,Math.round(s.w*.35));
+  if(S.myReq&&S.myReq.stop===s.id){if(space>0){S.myReq.state='boarded';S.myReq.by=b.id;toast(`Your boarding request at ${s.name} closed: boarded ${b.id}.`)}else{S.myReq.state='left';}}
+  if(s.id===KIOSK&&S.kiosk){S.kiosk=false;$('#kioskBtn').setAttribute('aria-pressed','false');log('ok',`${b.id} stopped at ${KIOSK} for a shelter-button request`)}
+  if(s.w>0&&space<s.w+1&&board===space){s.denied+=s.w;log('crit',`${b.id} full at ${s.id} ${s.name}: ${s.w} passengers left behind`);addGap('denied',s,b,`${s.w} left behind; bus full (${b.load}/${b.cap})`)}
+  else if(board>0&&s.quiet)log('ok',`${b.id} picked up ${board} at ${s.id} ${s.name} after a boarding request`);
+}
+
+/* ---------------- gaps data ---------------- */
+const GAPS=[
+ {id:'G-1042',t:15*60+2,type:'missed',stop:'S13',bus:'T815-02',detail:'Passed with 1 active request. Occupancy 41/60. No disruption logged. GPS shows no dwell.',status:'open'},
+ {id:'G-1039',t:14*60+31,type:'denied',stop:'S6',bus:'T815-01',detail:'Repeated denied boarding: 3rd weekday in a row at school dismissal (avg 11 left behind).',status:'open',repeat:true},
+ {id:'G-1036',t:13*60+50,type:'missed',stop:'S10',bus:'T815-03',detail:'Passed with active request. Bus full (60/60) — classified as denied boarding, not driver error.',status:'explained'},
+ {id:'G-1031',t:12*60+15,type:'shortage',stop:'S22',bus:'—',detail:'Persistent shortage leaving campus 17:00–18:30 on 9 of last 10 weekdays.',status:'open',repeat:true},
+ {id:'G-1027',t:11*60+5,type:'missed',stop:'S3',bus:'T815-02',detail:'Passed with active request. Road works near Tiara Damansara reported 11:00 — diversion.',status:'explained'},
+];
+let gapN=1043;
+function addGap(type,s,b,detail){const recent=GAPS.find(g=>g.stop===s.id&&g.type===type&&S.t-g.t<20);if(recent)return;GAPS.unshift({id:'G-'+(gapN++),t:S.t,type,stop:s.id,bus:b.id,detail,status:'open'});renderNavCount()}
+
+/* ---------------- nav ---------------- */
+const ICON={
+ live:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',passenger:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+ vision:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ decide:'<path d="M4 6h10M4 12h16M4 18h7"/><circle cx="18" cy="6" r="2"/><circle cx="15" cy="18" r="2"/>',
+ planner:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+ res:'<path d="M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z"/>',gaps:'<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
+ plan:'<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>',driver:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 14v7M10 12H3M14 12h7"/>'};
+const NAV=[['Operations'],['live','Live operations'],['decide','Decision support'],['gaps','Service gaps'],['Passengers'],['passenger','Passenger app'],['res','Reservations'],['Sensing'],['vision','Crowd estimation'],['driver','Driver display'],['Planning'],['planner','Capacity planner'],['plan','Township planning']];
+$('#nav').innerHTML=NAV.map(n=>n.length===1?`<div class="nav-group">${n[0]}</div>`:`<button type="button" data-view="${n[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[n[0]]}</svg>${n[1]}${n[0]==='gaps'?'<span class="count" id="gapCount"></span>':''}</button>`).join('');
+function renderNavCount(){const n=GAPS.filter(g=>g.status==='open').length;const el=$('#gapCount');if(el){el.textContent=n;el.hidden=!n}}
+let current='live';
+function show(v){if(!$('#v-'+v))v='live';current=v;$$('[data-view]').forEach(el=>{if(el.tagName==='SECTION')el.hidden=el.id!=='v-'+v});$$('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.view===v?'page':'false'));
+  try{localStorage.setItem('tp-view',v)}catch(e){}renderView(true);window.scrollTo(0,0)}
+document.addEventListener('click',e=>{const b=e.target.closest('#nav button,[data-goto]');if(b){show(b.dataset.view||b.dataset.goto)}});
+
+/* ---------------- toasts ---------------- */
+function toast(m){const d=document.createElement('div');d.textContent=m;$('#toast').appendChild(d);setTimeout(()=>d.remove(),4200)}
+
+/* ---------------- map ---------------- */
+function buildMap(){const m=$('#map');
+  m.innerHTML=`<image href="t815-map.webp" x="0" y="0" width="1446" height="1097" preserveAspectRatio="none"/>
+  <polyline points="${PTS.map(p=>p.x+','+p.y).join(' ')} ${PTS[0].x},${PTS[0].y}" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linejoin="round" stroke-opacity=".9"/>
+  <polyline points="${PTS.map(p=>p.x+','+p.y).join(' ')} ${PTS[0].x},${PTS[0].y}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linejoin="round"/>
+  <g id="mStops"></g><g id="mLabels"></g><g id="mBuses"></g>
+  <rect x="12" y="12" width="560" height="34" rx="6" fill="#FFFFFF" fill-opacity=".92"/>
+  <text x="24" y="35" font-size="17" fill="#13222C" font-family="var(--mono)">Route T815 · 27 stops · loop ~${LOOP_MIN} min at peak · every 15–30 min</text>
+  <text class="map-lbl" x="1434" y="1086" text-anchor="end" style="font-size:14px;font-weight:400">Map data © OpenStreetMap contributors · stops & route: RapidKL GTFS (data.gov.my)</text>`;
+  $('#mStops').innerHTML=STOPS.filter(s=>!s.rep).map(s=>`<g class="stop-g" data-stop="${s.id}" tabindex="0" role="button" aria-label="${s.id} ${esc(s.name)}"><title>${s.id} ${esc(s.name)} · stop ${s.code}</title>
+    <circle class="halo" cx="${s.x}" cy="${s.y}" r="14" fill="var(--ok)" fill-opacity=".28"/>
+    <circle class="core" cx="${s.x}" cy="${s.y}" r="9" fill="#FFFFFF" stroke="var(--ok)" stroke-width="4"/></g>`).join('');
+  $('#mLabels').innerHTML=STOPS.filter(s=>s.l).map(s=>{const nums=[s,...STOPS.filter(r=>r.rep===s.id)].map(x=>x.id.slice(1)).join('·');
+    return `<text class="map-lbl" x="${s.l[0]}" y="${s.l[1]}" text-anchor="${s.l[2]||'start'}"><tspan class="map-num">${nums}</tspan> ${esc(s.name)}</text>`}).join('');
+  $$('#mStops .stop-g').forEach(g=>{const f=()=>{S.sel=g.dataset.stop;renderLive()};g.addEventListener('click',f);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}})});
+}
+function renderMapDyn(){
+  STOPS.filter(s=>!s.rep).forEach(s=>{const g=$(`#mStops [data-stop="${s.id}"]`);const grp=[s,...STOPS.filter(r=>r.rep===s.id)];
+    const ps=grp.map(predict);const worst=ps.reduce((a,b)=>b.short>a.short?b:a);const st=status(worst);const col=`var(--${st})`;const tot=grp.reduce((a,x)=>a+recon(x).total,0);
+    g.querySelector('.halo').setAttribute('r',14+Math.min(26,tot*1.2));g.querySelector('.halo').setAttribute('fill',col);
+    g.querySelector('.core').setAttribute('stroke',col);g.querySelector('.core').setAttribute('r',grp.some(x=>x.id===S.sel)?12:9);
+    const hasReq=grp.some(x=>x.req>0||(S.myReq&&S.myReq.stop===x.id&&S.myReq.state==='active'))||(s.id===KIOSK&&S.kiosk);g.querySelector('.core').setAttribute('fill',hasReq?'#F0B43A':'#FFFFFF')});
+  const mb=$('#mBuses');mb.innerHTML=BUSES.map(b=>{const[x,y]=posAt(b.d);const pct=b.load/b.cap;const col=pct>=1?'var(--crit)':pct>.8?'var(--warn)':'var(--accent)';
+    const fc=b.temp?'var(--signal)':col;
+    return `<g class="bus-g" transform="translate(${x},${y})"><title>${b.id} · ${b.load}/${b.cap} passengers</title>
+    <circle r="24" fill="${fc}" stroke="#FFFFFF" stroke-width="3"/>
+    <rect x="-11" y="-14" width="22" height="25" rx="4" fill="#FFFFFF"/>
+    <rect x="-8" y="-11" width="16" height="9" rx="1.5" fill="${fc}"/>
+    <rect x="-8" y="0" width="16" height="2" rx="1" fill="${fc}" fill-opacity=".35"/>
+    <circle cx="-6" cy="6" r="2" fill="${fc}"/><circle cx="6" cy="6" r="2" fill="${fc}"/>
+    <rect x="-10" y="10" width="5" height="5" rx="1.5" fill="#FFFFFF"/><rect x="5" y="10" width="5" height="5" rx="1.5" fill="#FFFFFF"/></g>`}).join('');
+}
+
+/* ---------------- live render ---------------- */
+function renderLive(){
+  const preds=STOPS.map(s=>({s,p:predict(s),r:recon(s)}));
+  const waiting=preds.reduce((a,x)=>a+x.r.total,0),reqs=STOPS.reduce((a,s)=>a+s.req,0)+(S.myReq&&S.myReq.state==='active'?1:0)+(S.kiosk?1:0);
+  const short=preds.reduce((a,x)=>a+x.p.short,0);const open=GAPS.filter(g=>g.status==='open').length;
+  $('#kpis').innerHTML=[
+    ['Waiting now',waiting,'reconciled across 27 stops',''],
+    ['Boarding requests',reqs,'app, QR and shelter button',''],
+    ['Predicted left behind',short,'after next bus at each stop',short>8?'crit':short>0?'warn':''],
+    ['Buses in service',BUSES.length,`${DEPOT.spareBus} bus, ${DEPOT.spareVan} van spare at depot`,''],
+    ['Open service flags',open,'awaiting review',open?'warn':''],
+  ].map(k=>`<div class="kpi ${k[3]}"><span class="label">${k[0]}</span><span class="v">${k[1]}</span><span class="s">${k[2]}</span></div>`).join('');
+  renderMapDyn();
+  $('#fleetPill').textContent=`${BUSES.length} running`;
+  $('#buses').innerHTML=BUSES.map(b=>{const pct=b.load/b.cap;const next=STOPS.map(s=>({s,eta:etaTo(b,s)})).sort((a,c)=>a.eta-c.eta)[0];
+    return `<div class="bus-card"><span class="id">${b.id}${b.temp?' <span class="pill sig">relief</span>':''}</span><span class="muted" style="font-size:12px">${b.plate} · ${b.driver}</span>
+    <span class="num">${b.load}/${b.cap}</span><div class="bar ${pct>=1?'full':pct>.8?'hi':''}"><i style="width:${Math.min(100,pct*100)}%"></i></div>
+    <span class="muted" style="grid-column:1/-1;font-size:12px">Next: ${next.s.id} ${next.s.name} in <span class="num">${Math.max(1,Math.round(next.eta))} min</span>${b.hold>0?' · <b>holding at stop</b>':''}</span></div>`}).join('');
+  const sel=preds.find(x=>x.s.id===S.sel);const st=status(sel.p);
+  $('#stopDetail').innerHTML=`<div class="panel-h"><h3><span class="stop-id">${sel.s.id} · ${sel.s.code}</span>${sel.s.name}</h3><span class="pill ${st}">${st==='crit'?'Shortfall predicted':st==='warn'?'Tight':'Enough space'}</span></div>
+   <div class="panel-b stack"><div class="g-3 grid" style="gap:8px">
+   <div class="m"><div class="k">Reconciled waiting</div><div class="v">${sel.r.total}</div></div>
+   <div class="m"><div class="k">Next bus</div><div class="v">${sel.p.bus.id} · ${Math.max(1,Math.round(sel.p.eta))}m</div></div>
+   <div class="m"><div class="k">Space on arrival</div><div class="v">${sel.p.space}</div></div></div>
+   <div class="explain">${sel.p.short?`<b>${sel.p.short} passengers</b> likely left behind after ${sel.p.bus.id}. ${sel.p.after2?`About ${sel.p.after2} still waiting after the following bus.`:'The following bus should clear the remainder.'}`:`Expected demand of ${sel.p.demand} fits in the ${sel.p.space} places available on ${sel.p.bus.id}.`}</div>
+   ${sel.p.short?`<button class="btn primary" type="button" data-goto="decide">Compare responses for ${sel.s.id}</button>`:''}</div>`;
+  $('#stopTable').innerHTML=`<thead><tr><th>Stop</th><th class="r">Camera</th><th class="r">Requests</th><th class="r">Registered</th><th class="r">Reconciled</th><th>Next bus</th><th class="r">Space</th><th class="r">Left behind</th></tr></thead><tbody>`+
+   preds.map(({s,p,r})=>`<tr class="click ${S.sel===s.id?'sel':''}" data-stop="${s.id}"><td><span class="stop-id">${s.id}</span>${s.name}</td>
+   <td class="r num">${s.cv}${s.conf<.75?' <span class="pill warn" title="Low visibility">±3</span>':''}</td><td class="r num">${s.req+(S.myReq&&S.myReq.stop===s.id&&S.myReq.state==='active'?1:0)}</td><td class="r num">${s.regs}</td>
+   <td class="r num"><b>${r.total}</b></td><td class="num">${p.bus.id} · ${Math.max(1,Math.round(p.eta))}m</td><td class="r num">${p.space}</td>
+   <td class="r">${p.short?`<span class="pill crit">${p.short}</span>`:'<span class="pill ok">0</span>'}</td></tr>`).join('')+'</tbody>';
+  $$('#stopTable tr[data-stop]').forEach(tr=>tr.onclick=()=>{S.sel=tr.dataset.stop;renderLive()});
+  $('#feed').innerHTML=S.feed.length?S.feed.map(f=>`<div class="feed-item"><time>${fmtT(f.t)}</time><div class="sev ${f.sev}">${esc(f.msg)}</div></div>`).join(''):'<div class="feed-item"><time></time><div class="muted">Events will appear as buses serve stops.</div></div>';
+  renderTrips();
+}
+const HEADWAY=15;let lastSugg='';
+function renderTrips(){
+  const s1=STOPS[0];
+  const deps=[];BUSES.filter(b=>!b.temp).forEach(b=>{const e=etaTo(b,s1);deps.push({b,eta:e,cyc:0},{b,eta:e+LOOP_MIN,cyc:1})});
+  deps.sort((a,c)=>a.eta-c.eta);
+  let slot=deps.length?Math.round((S.t+deps[0].eta)/HEADWAY)*HEADWAY:0;
+  $('#nextTrips').innerHTML='<thead><tr><th>Departs</th><th>Bus</th><th>Status</th><th class="r">Free seats</th></tr></thead><tbody>'+
+   deps.slice(0,4).map(d=>{const exp=S.t+d.eta;const sched=slot;slot+=HEADWAY;const dl=Math.round(exp-sched);
+    const st=Math.abs(dl)<=2?['ok','On time']:dl>0?['warn',`${dl} min late`]:['info',`${-dl} min early`];
+    const free=d.cyc?'—':projectSpace(d.b,s1);
+    return `<tr><td class="num"><b>${fmtT(exp)}</b> <span class="muted" style="font-size:11.5px">sched ${fmtT(sched)}</span></td><td>${d.b.id}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td class="r num">${free}</td></tr>`}).join('')+'</tbody>';
+  const out=[];const recent=id=>S.approvals.some(a=>a.stop===id&&S.t-a.t<20);
+  STOPS.filter(x=>!x.rep).map(x=>({x,p:predict(x)})).filter(o=>o.p.short>0&&!recent(o.x.id)).sort((a,c)=>c.p.short-a.p.short).slice(0,2).forEach(({x,p})=>{
+    const big=p.short>25;out.push({sev:'crit',kind:big?'Relief trip · 60-seat bus':'Short trip · 25-seat van to MRT',when:fmtT(S.t+(big?9:6)),
+      detail:`${x.id} ${x.name}: ${p.short} likely left behind after ${p.bus.id}`,btn:`<button class="btn sm primary" type="button" data-goto="decide" data-sugg-stop="${x.id}">Review</button>`})});
+  const nb=nextBus(s1);for(let i=0;i<nb.length-1;i++){const gap=nb[i+1].eta-nb[i].eta;
+    if(gap>HEADWAY+5&&!recent('S1')){out.push({sev:'warn',kind:`Hold ${nb[i].b.id} 3 min at MRT`,when:fmtT(S.t+nb[i].eta),detail:`${Math.round(gap)} min gap before ${nb[i+1].b.id}. Holding evens out the spacing.`,btn:'<button class="btn sm" type="button" data-goto="decide" data-sugg-stop="S1">Review</button>'});break}}
+  TRIPS.filter(t=>t.state==='proposed').forEach(t=>out.push({sev:'info',kind:t.label,when:t.dep,detail:`${t.from}→${t.to} · ${t.req}/${t.cap} places requested · waiting for a vehicle and driver`,btn:'<button class="btn sm" type="button" data-goto="res">Open</button>'}));
+  const html=out.length?out.slice(0,4).map(o=>`<div class="sev ${o.sev}" style="display:flex;gap:10px;align-items:center;justify-content:space-between"><div style="min-width:0"><b>${o.kind}</b> <span class="num muted">· ${o.when}</span><br><span class="muted" style="font-size:12.5px">${esc(o.detail)}</span></div>${o.btn}</div>`).join('')
+    :'<span class="muted">No extra trips needed right now. Suggestions appear when a stop is predicted to leave people behind.</span>';
+  if(html!==lastSugg){$('#suggTrips').innerHTML=html;lastSugg=html}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-sugg-stop]');if(b){$('#decStop').value=b.dataset.suggStop;renderDecide()}});
+
+/* ---------------- passenger ---------------- */
+function stopOpts(sel){return STOPS.map(s=>`<option value="${s.id}" ${s.id===sel?'selected':''}>${s.id} ${s.name}</option>`).join('')}
+$('#regFrom').innerHTML=stopOpts('S6');$('#regTo').innerHTML=stopOpts('S1');$('#reqStop').innerHTML=stopOpts('S13');
+$('#regForm').addEventListener('submit',e=>{e.preventDefault();const from=$('#regFrom').value,to=$('#regTo').value;if(from===to){toast('Choose a destination different from the boarding stop.');return}
+  const n=clamp(parseInt($('#regGroup').value)||1,1,8);const r={id:Date.now(),from,to,win:$('#regWin').value,n};S.myRegs.push(r);STOPS.find(s=>s.id===from).regs+=n;
+  log('info',`New registration: ${n} pax ${from}→${to}, ${r.win}`);toast(`Registered ${n} for ${r.win}. This helps planning but does not guarantee a seat.`);renderPassenger()});
+function renderPassenger(){
+  $('#regList').innerHTML='<span class="label">Your registrations</span>'+(S.myRegs.length?S.myRegs.map(r=>`<div class="inline" style="justify-content:space-between"><span><b>${r.from}→${r.to}</b> · ${r.win} · ${r.n} pax</span><button class="btn sm" type="button" data-cancel-reg="${r.id}">Cancel</button></div>`).join(''):'<span class="muted">None yet</span>');
+  $$('[data-cancel-reg]').forEach(b=>b.onclick=()=>{const i=S.myRegs.findIndex(r=>r.id==b.dataset.cancelReg);const r=S.myRegs[i];const s=STOPS.find(s=>s.id===r.from);s.regs=Math.max(0,s.regs-r.n);S.myRegs.splice(i,1);toast('Registration cancelled.');renderPassenger()});
+  const q=S.myReq;const box=$('#reqStatus');
+  if(!q){box.innerHTML='<span class="label">Request status</span><span class="muted">No active request. Ordinary walk-up boarding is always available.</span>';$('#reqBtn').disabled=false}
+  else{const s=STOPS.find(s=>s.id===q.stop);const p=predict(s);const left=Math.max(0,Math.round(q.exp-S.t));
+    if(q.state==='active'&&left<=0)q.state='expired';
+    const st={active:['info','Active · driver notified'],boarded:['ok','Closed · boarded '+(q.by||'')],expired:['neutral','Expired'],left:['crit','Bus was full'],cancelled:['neutral','Cancelled']}[q.state];
+    box.innerHTML=`<div class="inline" style="justify-content:space-between"><span class="label">Request status</span><span class="pill ${st[0]}">${st[1]}</span></div>
+    <b>${s.name}</b><span>Next bus <b>${p.bus.id}</b> in <span class="num">${Math.max(1,Math.round(p.eta))} min</span> · ${p.space} places expected</span>
+    ${q.state==='left'?'<span class="muted">The operator can see you are still waiting. The next bus or a relief service will be shown here.</span>':''}
+    ${q.state==='active'?`<span class="muted">Expires in ${left} min</span><button class="big-btn alt" type="button" id="reqCancel">Cancel request</button>`:''}`;
+    $('#reqBtn').disabled=q.state==='active';const c=$('#reqCancel');if(c)c.onclick=()=>{q.state='cancelled';toast('Boarding request cancelled.');renderPassenger()}}
+  // supplementary
+  const trips=TRIPS.filter(t=>t.state!=='done');
+  $('#suppApp').innerHTML=trips.map(t=>{const mine=S.supp[t.id];const conf=t.state==='confirmed';
+    return `<div class="card"><div class="inline" style="justify-content:space-between"><b>${t.label}</b><span class="pill ${conf?'ok':'warn'}">${conf?'Operator confirmed':'Proposed'}</span></div>
+    <span class="num">${t.dep} · ${t.from}→${t.to}</span><span class="muted" style="font-size:12px">${t.veh} · ${t.req}/${t.cap} places requested</span>
+    ${mine?`<span class="pill ${mine==='confirmed'?'ok':'info'}">${mine==='confirmed'?'Your place is confirmed':'Requested · awaiting operator'}</span>${mine==='confirmed'?qrSvg(t.id):''}`
+      :`<button class="btn primary" type="button" data-supp="${t.id}">Request a place</button>`}</div>`}).join('')+
+   '<p class="note">A request becomes a confirmed reservation only when the operator commits a vehicle and driver. Confirmed places can be cancelled free until 15 minutes before departure.</p>';
+  $$('[data-supp]').forEach(b=>b.onclick=()=>{const t=TRIPS.find(t=>t.id===b.dataset.supp);t.req++;S.supp[t.id]=t.state==='confirmed'?'confirmed':'requested';
+    RES.unshift({id:'R-'+(5000+RES.length),who:'•••• 4821',trip:t.id,state:S.supp[t.id]==='confirmed'?'confirmed':'requested',note:'Requested from app'});toast(S.supp[t.id]==='confirmed'?'Place confirmed. Show the QR code when boarding.':'Place requested. You will be notified if the operator confirms this trip.');renderPassenger()});
+  // kiosk
+  const s6=SMAP[KIOSK];const p6=predict(s6);const nb=nextBus(s6);
+  $('#kiosk').innerHTML=`<span class="hdr">S13 · PUSAT SUKAN UM · ${fmtT(S.t)}</span>
+   ${nb.slice(0,3).map(x=>`<div class="row"><span>T815 ${x.b.id.slice(5)} → MRT Phileo</span><span>${Math.max(1,Math.round(x.eta))} min</span></div>`).join('')}
+   <div class="row"><span>Next bus space</span><span>${p6.space>20?'Plenty':p6.space>5?'Some':'Very full'}</span></div>
+   <span style="color:${S.kiosk?'#7FE0A6':'#8FB9C4'}">${S.kiosk?'● REQUEST SENT · DRIVER NOTIFIED':'Press the button to tell the driver you are waiting'}</span>`;
+}
+$('#reqBtn').onclick=()=>{const id=$('#reqStop').value;S.myReq={stop:id,state:'active',exp:S.t+30};log('info',`Boarding request at ${id} via app`);toast('Boarding request sent. The approaching driver will see your stop highlighted.');renderPassenger()};
+$('#kioskBtn').onclick=()=>{S.kiosk=!S.kiosk;$('#kioskBtn').setAttribute('aria-pressed',S.kiosk);if(S.kiosk)log('info','Shelter button pressed at S13 Pusat Sukan UM');renderPassenger()};
+function qrSvg(id){let h=0;for(const c of id)h=(h*31+c.charCodeAt(0))>>>0;let cells='';const n=21;
+  const fin=(x,y)=>`<rect x="${x}" y="${y}" width="7" height="7" fill="var(--ink)"/><rect x="${x+1}" y="${y+1}" width="5" height="5" fill="var(--surface)"/><rect x="${x+2}" y="${y+2}" width="3" height="3" fill="var(--ink)"/>`;
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){if((x<8&&y<8)||(x>12&&y<8)||(x<8&&y>12))continue;h=(h*1103515245+12345)>>>0;if(h>>>16&1)cells+=`<rect x="${x}" y="${y}" width="1" height="1" fill="var(--ink)"/>`}
+  return `<svg class="qr" viewBox="-1 -1 23 23" role="img" aria-label="Boarding QR code"><rect x="-1" y="-1" width="23" height="23" fill="var(--surface)"/>${fin(0,0)}${fin(14,0)}${fin(0,14)}${cells}</svg><span class="note" style="text-align:center">Assisted fallback: give the driver your booking code <b class="mono">${id}-4821</b></span>`}
+
+/* ---------------- crowd vision ---------------- */
+const camStops=STOPS.filter(s=>s.cam);
+$('#cams').innerHTML=camStops.map(s=>`<div><div class="cam"><canvas width="480" height="300" data-cam="${s.id}"></canvas>
+  <div class="cam-hud"><div class="tl"><span>CAM-${s.id} · ${esc(s.name)}</span><span class="rec">● LIVE</span></div><div class="count" data-count="${s.id}"></div></div></div>
+  <div class="cam-meta" data-meta="${s.id}"></div></div>`).join('');
+const people={};camStops.forEach(s=>people[s.id]=[]);
+function drawCams(){camStops.forEach(s=>{const c=$(`canvas[data-cam="${s.id}"]`);if(!c)return;const g=c.getContext('2d');const W=480,H=300;
+  const grd=g.createLinearGradient(0,0,0,H);grd.addColorStop(0,s.rain?'#1A2329':'#22313A');grd.addColorStop(1,s.rain?'#11181C':'#141E24');g.fillStyle=grd;g.fillRect(0,0,W,H);
+  g.fillStyle='#2C3D47';g.fillRect(0,200,W,100);g.fillStyle='#3A4E59';g.fillRect(40,60,300,14);g.fillRect(52,74,6,126);g.fillRect(322,74,6,126); // shelter
+  g.fillStyle='#4A5F6A';g.fillRect(90,160,180,10); // bench
+  const zone=[[30,120],[380,120],[450,290],[10,290]];g.beginPath();zone.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fillStyle='rgba(77,180,194,.08)';g.fill();g.setLineDash([6,5]);g.strokeStyle='#4DB4C2';g.lineWidth=1.5;g.stroke();g.setLineDash([]);
+  g.fillStyle='#4DB4C2';g.font='11px IBM Plex Mono, monospace';g.fillText('WAITING ZONE',38,136);
+  const arr=people[s.id];while(arr.length<s.w)arr.push({x:40+rnd()*380,y:150+rnd()*120,ph:rnd()*6});arr.length=Math.min(arr.length,s.w);
+  arr.forEach((p,i)=>{p.ph+=.2;const x=p.x+Math.sin(p.ph)*1.5,y=p.y;const sc=.6+(y-150)/240;const h=46*sc,w=18*sc;
+    g.fillStyle='#8FA5AF';g.beginPath();g.ellipse(x,y-h+6*sc,6*sc,6*sc,0,0,7);g.fill();g.fillRect(x-w/2,y-h+12*sc,w,h-12*sc);
+    const unsure=s.rain&&i%3===0;g.strokeStyle=unsure?'#F0B43A':'#5BC189';g.lineWidth=1.5;g.strokeRect(x-w/2-4,y-h-2,w+8,h+4)});
+  if(s.rain){g.strokeStyle='rgba(200,220,230,.25)';g.lineWidth=1;for(let i=0;i<90;i++){const x=rnd()*W,y=rnd()*H;g.beginPath();g.moveTo(x,y);g.lineTo(x-4,y+12);g.stroke()}g.fillStyle='rgba(10,20,25,.35)';g.fillRect(0,0,W,H)}
+  const lo=Math.max(0,s.cv-(s.rain?3:1)),hi=s.cv+(s.rain?3:1);
+  $(`[data-count="${s.id}"]`).innerHTML=`<b>${s.cv}</b> in zone <span style="opacity:.75">(${lo}–${hi})</span>`;
+  $(`[data-meta="${s.id}"]`).innerHTML=`<span class="pill ${s.conf<.75?'warn':'ok'}">Confidence ${Math.round(s.conf*100)}%</span>${s.rain?'<span class="pill warn">Rain on lens · count uncertain</span><span class="pill neutral">Leaning on requests + registrations</span>':'<span class="pill neutral">Visibility good</span>'}<span class="pill info">${s.req} digital requests</span>`})}
+$('#reconStop').innerHTML=stopOpts('S6');$('#reconStop').onchange=renderRecon;
+function renderRecon(){const s=STOPS.find(x=>x.id===$('#reconStop').value);const r=recon(s);
+  $('#recon').innerHTML=`<div class="recon"><span class="label">Camera</span><span class="label">Requests</span><span class="label">Registered (next 30 min)</span><span class="label">Overlap removed</span><span class="label">Reconciled</span>
+  <b>${s.cv}</b><b>${s.req}</b><b>${s.regs}</b><b style="color:var(--muted)">−${r.overlap}</b><b style="color:var(--accent)">${r.total}</b></div>
+  <div class="explain">People who sent a boarding request are usually already visible on camera, so the larger of the two (${r.base}) is taken as the observed queue. Registrations for the next 30 minutes are added at a 70% show-up rate (${r.pending}) because those passengers have not yet arrived. ${s.conf<.75?'Camera confidence is low here, so the request count carries more weight and the stop is flagged on the map.':''}</div>`}
+
+/* ---------------- decision support ---------------- */
+$('#decStop').innerHTML=stopOpts('S6');$('#decStop').onchange=renderDecide;$('#recalc').onclick=()=>{renderDecide();toast('Options recalculated with current positions.')};
+function worstStop(){return STOPS.map(s=>({s,p:predict(s)})).sort((a,b)=>b.p.short-a.p.short)[0]}
+function renderDecide(fromNav){if(fromNav){const w=worstStop();if(w.p.short>0)$('#decStop').value=w.s.id}
+  const s=STOPS.find(x=>x.id===$('#decStop').value);const p=predict(s);const sh=Math.max(p.short,p.after2,0);const headway=Math.round(p.eta2-p.eta||20);
+  const holdBus=BUSES.find(b=>b!==p.bus&&!b.temp);
+  const opts=[
+   {k:'none',name:'Keep the current timetable',desc:`Let ${p.bus.id} and the following bus serve ${s.id} as scheduled.`,served:Math.min(p.demand,p.space),left:sh,wait:`+${headway}`,vkm:0,dh:0,cost:0,checks:[['No change needed',1]],feasible:true},
+   {k:'hold',name:`Hold ${holdBus.id} 3 min to even spacing`,desc:'Permitted departure adjustment. Narrows the gap behind the crowded bus.',served:Math.min(p.demand,p.space+Math.round(sh*.35)),left:Math.round(sh*.65),wait:`−3`,vkm:0,dh:.05,cost:0,
+     checks:[['Driver break preserved',1],['Min coverage elsewhere',1],['Within 5-min hold rule',1]],feasible:true},
+   {k:'relief',name:'Relief trip from depot',desc:`Spare 60-seat bus with standby driver joins at ${s.id}. Lead time 9 min.`,served:Math.min(p.demand,p.space+Math.min(sh,60)),left:Math.max(0,sh-60),wait:'−8',vkm:14.2,dh:1,cost:165,
+     checks:[['Spare bus WYB 1120',DEPOT.spareBus>0],['Eligible driver: Hafiz M.',1],['Duty hours within limit',1],['Turnaround feasible',1]],feasible:DEPOT.spareBus>0},
+   {k:'short',name:`Short supplementary trip ${s.id}→S1 MRT`,desc:'Approved 25-seat van running direct to MRT Phileo Damansara, skipping the rest of the loop.',served:Math.min(p.demand,p.space+Math.min(sh,25)),left:Math.max(0,sh-25),wait:'−6',vkm:6.8,dh:.75,cost:85,
+     checks:[['Van available',DEPOT.spareVan>0],['Driver with van licence',1],['Route permission (approved circuit)',!!s.circuit],['No conflict with T815 stops',1]],feasible:DEPOT.spareVan>0&&!!s.circuit},
+   {k:'overflow',name:'Contracted overflow transport',desc:'Partner van operator under call-off contract. 20-min lead time.',served:Math.min(p.demand,p.space+Math.min(sh,20)),left:Math.max(0,sh-20),wait:'−4',vkm:8,dh:0,cost:180,
+     checks:[['Contract active',1],['Lead time ≤ 25 min',1],['Daily call-off budget left: RM 360',1]],feasible:true},
+  ];
+  const scored=opts.map(o=>({...o,score:o.feasible?(sh-o.left)*10-o.cost*.15:-1e9}));const best=scored.filter(o=>o.k!=='none').sort((a,b)=>b.score-a.score)[0];
+  $('#decSummary').innerHTML=`<div class="inline" style="justify-content:space-between"><div><span class="label">Situation at ${fmtT(S.t)}</span><h3 style="margin-top:2px">${s.id} ${s.name}: ${p.demand} expected, ${p.space} places on ${p.bus.id} (${Math.max(1,Math.round(p.eta))} min)</h3></div>
+   <span class="pill ${sh?'crit':'ok'}">${sh?`${sh} likely left behind`:'No shortfall predicted'}</span></div>`;
+  $('#options').innerHTML=scored.map(o=>`<div class="opt ${o===best&&sh?'best':''} ${o.feasible?'':'infeasible'}">
+   <div><div class="inline"><h3>${o.name}</h3>${o===best&&sh?'<span class="pill info">Recommended</span>':''}${o.feasible?'':'<span class="pill crit">Not feasible</span>'}</div><p class="muted" style="margin:4px 0 0">${o.desc}</p></div>
+   <div>${o.k==='none'?'':`<button class="btn ${o===best?'primary':''}" type="button" data-approve="${o.k}" ${o.feasible&&sh?'':'disabled'}>Approve</button>`}</div>
+   <div class="opt-metrics"><div class="m"><div class="k">Passengers served</div><div class="v">${o.served}</div></div><div class="m"><div class="k">Left behind</div><div class="v">${o.left}</div></div>
+   <div class="m"><div class="k">Wait change (min)</div><div class="v">${o.wait}</div></div><div class="m"><div class="k">Vehicle-km · driver-h</div><div class="v">${o.vkm} · ${o.dh}</div></div><div class="m"><div class="k">Est. cost</div><div class="v">RM ${o.cost}</div></div></div>
+   <div class="checks">${o.checks.map(c=>`<span class="chk ${c[1]?'y':'n'}">${c[0]}</span>`).join('')}</div></div>`).join('')+
+   (sh&&!scored.some(o=>o.feasible&&o.k!=='none'&&o.left===0)?`<div class="explain"><b>Remaining gap:</b> even the best feasible option leaves some passengers waiting. Affected passengers are shown the next departure time in the app and at the shelter display.</div>`:'');
+  $$('[data-approve]').forEach(b=>b.onclick=()=>approve(scored.find(o=>o.k===b.dataset.approve),s,p));
+  renderApprovals()}
+function approve(o,s,p){
+  if(o.k==='hold'){const hb=BUSES.find(b=>b!==p.bus&&!b.temp);hb.hold=3}
+  if(o.k==='relief'||o.k==='short'){const isVan=o.k==='short';if(isVan)DEPOT.spareVan--;else DEPOT.spareBus--;
+    const id=isVan?'T815-V1':'T815-R1';const startD=s.d-SPEED*1.5;const endStop=STOPS[0];let endD=endStop.d;while(endD<=startD+5)endD+=L;
+    BUSES.push({id,plate:isVan?'VAN 5512':'WYB 1120',cap:isVan?25:60,load:0,d:startD,driver:'Hafiz M.',duty:'D07',temp:true,endD});
+    TRIPS.unshift({id:isVan?'SX-'+(TRIPS.length+31):'RX-'+(TRIPS.length+31),label:isVan?'Express to MRT':'Relief trip',dep:fmtT(S.t+2),from:s.id,to:'S1',veh:isVan?'25-seat van':'60-seat bus',cap:isVan?25:60,req:0,state:'confirmed'})}
+  S.approvals.unshift({t:S.t,what:o.name,stop:s.id,cost:o.cost,by:'Dispatcher · Shift B'});
+  log('ok',`Approved: ${o.name} for ${s.id}`);toast(`Approved: ${o.name}. Drivers and passengers notified.`);renderDecide()}
+function renderApprovals(){$('#approvals').innerHTML='<thead><tr><th>Time</th><th>Action</th><th>Stop</th><th class="r">Cost</th><th>Approved by</th></tr></thead><tbody>'+
+  (S.approvals.length?S.approvals.map(a=>`<tr><td class="num">${fmtT(a.t)}</td><td>${esc(a.what)}</td><td>${a.stop}</td><td class="r num">RM ${a.cost}</td><td>${a.by}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">No interventions approved this shift.</td></tr>')+'</tbody>'}
+
+/* ---------------- planner ---------------- */
+const SCEN=[
+ {k:'A',name:'Maintain current timetable',res:'Existing fleet (3 buses) and 6 duties',served:1420,wait:14.2,left:9,vkm:0,dh:0,cost:0,trade:'Predicted queue and waiting time remain'},
+ {k:'B',name:'Adjust existing departures',res:'Same fleet; shift D03 break 20 min, re-space 15:30–17:30',served:1480,wait:11.8,left:6,vkm:0,dh:.5,cost:40,trade:'Less crowding; late-evening headway widens to 25 min'},
+ {k:'C',name:'Add short supplementary service',res:'1 van + 1.5 driver-h/day (D07 standby)',served:1555,wait:10.9,left:2,vkm:18,dh:1.5,cost:210,trade:'Targets school and campus → MRT only; needs approved operating arrangement'},
+ {k:'D',name:'Increase full-route frequency',res:'+2 buses, +6 driver-h/day (20 → 12 min)',served:1610,wait:8.6,left:1,vkm:96,dh:6,cost:1180,trade:'Benefits whole route at much higher cost'},
+];
+let scenSel='C';
+const HOURS=[14,15,16,17,18];const DEMAND=[150,250,215,260,185];
+function capFor(k){const base=[180,180,180,180,180];if(k==='B')return[180,200,200,195,180];if(k==='C')return[180,255,215,255,180];if(k==='D')return[300,300,300,300,300];return base}
+function renderPlanner(){
+  $('#scen').innerHTML='<thead><tr><th>Option</th><th>Resource requirement</th><th class="r">Pax served</th><th class="r">Avg wait</th><th class="r">Left-behind events</th><th class="r">+Veh-km</th><th class="r">+Driver-h</th><th class="r">Cost/day</th><th class="r">RM per pax gained</th><th>Tradeoff</th></tr></thead><tbody>'+
+   SCEN.map(s=>`<tr class="scen-row" data-k="${s.k}" aria-selected="${s.k===scenSel}" tabindex="0"><td><b>${s.k}</b> · ${s.name}</td><td>${s.res}</td><td class="r num">${s.served.toLocaleString()}</td><td class="r num">${s.wait} min</td>
+   <td class="r">${s.left>5?`<span class="pill crit">${s.left}</span>`:s.left>1?`<span class="pill warn">${s.left}</span>`:`<span class="pill ok">${s.left}</span>`}</td><td class="r num">${s.vkm}</td><td class="r num">${s.dh}</td><td class="r num">RM ${s.cost.toLocaleString()}</td>
+   <td class="r num">${s.k==='A'?'—':(s.cost/(s.served-1420)).toFixed(2)}</td><td class="muted">${s.trade}</td></tr>`).join('')+'</tbody>';
+  $$('.scen-row').forEach(r=>{const f=()=>{scenSel=r.dataset.k;renderPlanner()};r.onclick=f;r.onkeydown=e=>{if(e.key==='Enter')f()}});
+  // chart
+  const cap=capFor(scenSel),W=520,H=230,pl=40,pb=28,pt=12,max=300;const bw=(W-pl-10)/HOURS.length;const y=v=>pt+(H-pt-pb)*(1-v/max);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Hourly demand versus capacity">`;
+  [0,50,100,150,200,250,300].forEach(v=>svg+=`<line x1="${pl}" x2="${W-6}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${y(v)+4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--mono)">${v}</text>`);
+  HOURS.forEach((h,i)=>{const x=pl+i*bw+bw*.18;const over=DEMAND[i]>cap[i];
+    svg+=`<rect x="${x}" y="${y(cap[i])}" width="${bw*.64}" height="${y(0)-y(cap[i])}" rx="3" fill="var(--accent)" fill-opacity=".28"/>`;
+    if(over)svg+=`<rect x="${x}" y="${y(DEMAND[i])}" width="${bw*.64}" height="${y(cap[i])-y(DEMAND[i])}" fill="var(--crit)" fill-opacity=".55"/>`;
+    svg+=`<text x="${x+bw*.32}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--mono)">${h}:00</text>`});
+  svg+=`<polyline fill="none" stroke="var(--ink)" stroke-width="2" points="${HOURS.map((h,i)=>`${pl+i*bw+bw*.5},${y(DEMAND[i])}`).join(' ')}"/>`;
+  HOURS.forEach((h,i)=>svg+=`<circle cx="${pl+i*bw+bw*.5}" cy="${y(DEMAND[i])}" r="3.5" fill="var(--ink)"/>`);
+  svg+='</svg>';$('#capChart').innerHTML=svg+`<div class="inline" style="font-size:12px;margin-top:6px"><span class="inline" style="gap:4px"><i class="dot" style="background:var(--accent);opacity:.5;border-radius:2px"></i>Offered places/hour</span><span class="inline" style="gap:4px"><i class="dot" style="background:var(--ink)"></i>Forecast demand</span><span class="inline" style="gap:4px"><i class="dot" style="background:var(--crit);border-radius:2px"></i>Unserved</span></div>`;
+  const unserved=HOURS.reduce((a,h,i)=>a+Math.max(0,DEMAND[i]-cap[i]),0);$('#chartNote').textContent=`Scenario ${scenSel} · ${unserved} unserved boardings/peak`;
+  const sc=SCEN.find(s=>s.k===scenSel);
+  const rc={A:[['Vehicles','3 of 3 in use',1],['Drivers','6 duties rostered',1],['Unserved demand',unserved+' boardings',0]],
+   B:[['Vehicles','No change',1],['Breaks','30-min breaks kept for all duties',1],['Coverage elsewhere','S1 evening headway 15 min (limit 15)',1]],
+   C:[['Vehicle','Depot van VAN 5512 free 15:00–18:00',1],['Driver','Hafiz M. (D07) standby, van-licensed',1],['Duty limit','D07 reaches 8.5 h of 10 h max',1],['Route permission','School/campus → MRT express needs operator approval',0]],
+   D:[['Vehicles','Need 2 more buses (1 spare available)',0],['Drivers','Need 6 more driver-hours/day',0],['Funding','RM 1,180/day ≈ RM 307k/yr (weekdays)',0]]}[scenSel];
+  $('#resCheck').innerHTML=`<b>${sc.k} · ${sc.name}</b>`+rc.map(r=>`<div class="inline" style="justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px"><span class="chk ${r[2]?'y':'n'}">${r[0]}</span><span class="muted" style="text-align:right">${r[1]}</span></div>`).join('')+
+   (scenSel==='D'?'<div class="explain"><b>Resource gap:</b> 1 additional bus and 6 driver-hours per weekday must be funded or contracted. TransitPulse reports the gap rather than assuming spare resources.</div>':'');
+  // gantt 06-22
+  const dut=[
+   ['D01','Siti A.','T815-01',[[6,10],[10,10.5,'b'],[10.5,14]]],
+   ['D02','Aminah R.','T815-01',[[14,18],[18,18.5,'b'],[18.5,22]]],
+   ['D03','Kumar S.','T815-02',scenSel==='B'?[[7,11],[11,11.5,'b'],[11.5,15],[15,15.5,'b','s'],[15.5,18]]:[[7,11],[11,11.5,'b'],[11.5,15.5],[15.5,16,'b'],[16,18]]],
+   ['D04','Lee W.H.','T815-03',[[12,16],[16,16.5,'b'],[16.5,21]]],
+   ['D05','Ravi P.','T815-02',[[18,22]]],
+   ['D06','Nurul H.','T815-03',[[6,12]]],
+   ['D07','Hafiz M.','Standby',scenSel==='C'?[[9,13,'sb'],[13,13.5,'b'],[15.25,16.75,'n'],[16.75,17,'b'],[17,18,'n']]:[[9,13,'sb'],[13,13.5,'b'],[13.5,18,'sb']]],
+  ];
+  if(scenSel==='D'){dut.push(['D08','New duty','T815-04',[[14,19,'n']]],['D09','Contracted','T815-05',[[15,18,'n']]])}
+  const X=h=>((h-6)/16*100);
+  $('#gantt').innerHTML=`<div class="gantt">${dut.map(d=>`<div class="who">${d[0]} · ${d[1]}<small>${d[2]}</small></div><div class="lane">${d[3].map(b=>{const cls=b[2]==='b'?'brk':b[2]==='n'?'new':b[3]==='s'||(scenSel==='B'&&d[0]==='D03'&&b[0]>=15.5)?'shift':'';
+    const lbl=b[2]==='b'?'break':b[2]==='sb'?'standby':b[2]==='n'?(d[0]==='D07'?'van → MRT':'added'):`${fmtT(b[0]*60)}–${fmtT(b[1]*60)}`;
+    return `<div class="duty ${cls}" style="left:${X(b[0])}%;width:${X(b[1])-X(b[0])}%;${b[2]==='sb'?'background:var(--accent-weak);color:var(--accent)':''}" title="${lbl}">${lbl}</div>`}).join('')}</div>`).join('')}
+    <div></div><div class="axis">${[6,8,10,12,14,16,18,20,22].map(h=>`<span>${String(h).padStart(2,'0')}</span>`).join('')}</div></div>`;
+}
+
+/* ---------------- reservations ---------------- */
+const TRIPS=[
+ {id:'SX-31',label:'School-to-MRT express',dep:'15:40',from:'S6',to:'S1',veh:'25-seat van',cap:25,req:21,state:'confirmed'},
+ {id:'SX-32',label:'School-to-MRT express',dep:'16:05',from:'S6',to:'S1',veh:'25-seat van',cap:25,req:9,state:'proposed'},
+ {id:'EV-07',label:'Evening campus express',dep:'17:15',from:'S9',to:'S1',veh:'40-seat bus',cap:40,req:27,state:'proposed'},
+];
+const RES=[
+ {id:'R-4991',who:'•••• 1190',trip:'SX-31',state:'confirmed',note:'Reminder sent 15:10'},
+ {id:'R-4987',who:'•••• 6604',trip:'SX-31',state:'boarded',note:'QR scanned (yesterday)'},
+ {id:'R-4980',who:'•••• 3315',trip:'SX-28',state:'noshow',note:'2nd unjustified no-show in 30 days'},
+ {id:'R-4976',who:'•••• 7742',trip:'SX-28',state:'opcancel',note:'Trip cancelled by operator — not counted'},
+ {id:'R-4970',who:'•••• 2051',trip:'SX-27',state:'denied',note:'Van full on arrival — denied boarding, not counted'},
+ {id:'R-4968',who:'•••• 9023',trip:'SX-27',state:'dispute',note:'Passenger says QR scanner failed; assisted boarding recorded by driver'},
+ {id:'R-4961',who:'•••• 4410',trip:'EV-06',state:'noshow',note:'3rd no-show · new bookings paused 7 days'},
+];
+let resF='all';
+$('#resFilter').onclick=e=>{const b=e.target.closest('button');if(!b)return;resF=b.dataset.f;$$('#resFilter button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderRes()};
+const RS={requested:['info','Requested'],confirmed:['ok','Confirmed'],boarded:['ok','Boarded'],noshow:['crit','No-show'],opcancel:['neutral','Operator cancelled'],denied:['neutral','Denied boarding'],dispute:['warn','Disputed'],cleared:['neutral','Cleared after dispute']};
+function renderRes(){
+  $('#trips').innerHTML='<thead><tr><th>Trip</th><th>Departs</th><th>Section</th><th>Vehicle</th><th class="r">Requests</th><th>Status</th><th></th></tr></thead><tbody>'+
+   TRIPS.map(t=>`<tr><td><span class="stop-id">${t.id}</span>${t.label}</td><td class="num">${t.dep}</td><td>${t.from}→${t.to}</td><td>${t.veh}</td><td class="r num">${t.req}/${t.cap}</td>
+   <td><span class="pill ${t.state==='confirmed'?'ok':'warn'}">${t.state==='confirmed'?'Vehicle and driver committed':'Proposed · not yet committed'}</span></td>
+   <td class="r">${t.state==='proposed'?`<button class="btn sm primary" type="button" data-commit="${t.id}">Commit vehicle and driver</button>`:''}</td></tr>`).join('')+'</tbody>';
+  $$('[data-commit]').forEach(b=>b.onclick=()=>{const t=TRIPS.find(x=>x.id===b.dataset.commit);t.state='confirmed';RES.forEach(r=>{if(r.trip===t.id&&r.state==='requested')r.state='confirmed'});if(S.supp[t.id])S.supp[t.id]='confirmed';
+    log('ok',`${t.id} confirmed: vehicle and driver committed. ${t.req} requesters notified`);toast(`${t.id} confirmed. ${t.req} passengers notified.`);renderRes()});
+  const rows=RES.filter(r=>resF==='all'||r.state===resF);
+  $('#resTable').innerHTML='<thead><tr><th>Record</th><th>Passenger</th><th>Trip</th><th>Status</th><th>Note</th><th></th></tr></thead><tbody>'+
+   (rows.length?rows.map(r=>`<tr><td class="num">${r.id}</td><td class="num">${r.who}</td><td>${r.trip}</td><td><span class="pill ${RS[r.state][0]}">${RS[r.state][1]}</span></td><td class="muted">${esc(r.note)}</td>
+   <td class="r">${r.state==='dispute'?`<button class="btn sm" type="button" data-clear="${r.id}">Uphold dispute</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" class="muted">No records match this filter.</td></tr>')+'</tbody>';
+  $$('[data-clear]').forEach(b=>b.onclick=()=>{const r=RES.find(x=>x.id===b.dataset.clear);r.state='cleared';r.note='Dispute upheld: record removed from no-show count';toast('Dispute upheld. The no-show record was removed.');renderRes()});
+}
+
+/* ---------------- gaps ---------------- */
+let gapF='open';
+$('#gapFilter').onclick=e=>{const b=e.target.closest('button');if(!b)return;gapF=b.dataset.f;$$('#gapFilter button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderGaps()};
+const GT={missed:['crit','Possible missed pickup'],denied:['warn','Denied boarding'],shortage:['warn','Persistent shortage']};
+function renderGaps(){const open=GAPS.filter(g=>g.status==='open');
+  $('#gapKpis').innerHTML=[['Open flags',open.length,''],['Possible missed pickups',open.filter(g=>g.type==='missed').length,'crit'],['Denied-boarding events today',GAPS.filter(g=>g.type==='denied').length,'warn'],['Explained by capacity or disruption',GAPS.filter(g=>g.status==='explained').length,'']]
+   .map(k=>`<div class="kpi ${k[2]}"><span class="label">${k[0]}</span><span class="v">${k[1]}</span></div>`).join('');
+  const rows=GAPS.filter(g=>gapF==='all'||g.status==='open');
+  $('#gapTable').innerHTML='<thead><tr><th>Flag</th><th>Time</th><th>Type</th><th>Stop</th><th>Bus</th><th>What the system checked</th><th>Status</th><th></th></tr></thead><tbody>'+
+   (rows.length?rows.map(g=>{const s=STOPS.find(x=>x.id===g.stop);return `<tr><td class="num">${g.id}</td><td class="num">${fmtT(g.t)}</td><td><span class="pill ${GT[g.type][0]}">${GT[g.type][1]}</span>${g.repeat?' <span class="pill neutral">recurring</span>':''}</td>
+   <td>${g.stop} ${s?s.name:''}</td><td class="num">${g.bus}</td><td class="muted" style="min-width:240px">${esc(g.detail)}</td>
+   <td><span class="pill ${g.status==='open'?'info':'neutral'}">${{open:'Needs review',explained:'Explained',reviewed:'Reviewed',dismissed:'Dismissed'}[g.status]}</span></td>
+   <td class="r" style="white-space:nowrap">${g.status==='open'?`<button class="btn sm" type="button" data-gap="${g.id}" data-act="reviewed">Mark reviewed</button> <button class="btn sm ghost" type="button" data-gap="${g.id}" data-act="dismissed">Dismiss</button>`:''}</td></tr>`}).join(''):'<tr><td colspan="8" class="muted">No open flags. Everything has been reviewed.</td></tr>')+'</tbody>';
+  $$('[data-gap]').forEach(b=>b.onclick=()=>{GAPS.find(g=>g.id===b.dataset.gap).status=b.dataset.act;renderNavCount();renderGaps()});
+}
+
+/* ---------------- township ---------------- */
+const ZONES=[['Phileo Damansara offices',15],['Tiara Damansara',34],['UIA PJ campus',47],['Section 16 PJ',58],['MAHSA area',22],['UM faculties',63],['UM residential colleges',81],['UM south gate fringe',74]];
+function zoneColor(v){return v>70?'var(--crit-weak)':v>45?'var(--warn-weak)':'var(--ok-weak)'}
+function renderPlan(){
+  $('#zones').innerHTML=ZONES.map(z=>`<div class="zone" style="background:${zoneColor(z[1])}"><b>${z[0]}</b><span class="idx" style="color:var(--${z[1]>70?'crit':z[1]>45?'warn':'ok'})">${z[1]}</span></div>`).join('');
+  $('#invest').innerHTML='<thead><tr><th>Priority</th><th>Where</th><th>Evidence</th><th>Type</th></tr></thead><tbody>'+[
+   ['1','UM residential colleges','41% of registrations walk 700 m+ to the nearest T815 stop','Feeder extension'],
+   ['2','S13 Pusat Sukan UM','Low boardings but 12 shelter-button presses/day; no shelter, poor lighting','Shelter + lighting'],
+   ['3','S6 SMK Sultan Abd Samad (Timur)','Denied boarding 4 of 5 weekdays, 15:30–16:00','Supplementary trip'],
+   ['4','Section 17 PJ → S4','Footpath gap 350 m to the UIA PJ (Barat) stop','Pedestrian access'],
+   ['5','UM campus → S1 MRT','Evening shortage 17:00–18:30','Peak frequency'],
+  ].map(r=>`<tr><td class="num">${r[0]}</td><td><b>${r[1]}</b></td><td class="muted">${r[2]}</td><td><span class="pill info">${r[3]}</span></td></tr>`).join('')+'</tbody>';
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];let h='<div></div>';for(let x=6;x<23;x++)h+=`<div class="hl">${x}</div>`;
+  days.forEach((d,di)=>{h+=`<div class="lbl">${d}</div>`;for(let x=6;x<23;x++){const wk=di<5;let v=wk?(Math.exp(-((x-7.5)**2)/2)*90+Math.exp(-((x-15.7)**2)/1.2)*75+Math.exp(-((x-17.8)**2)/1.8)*85+12):(Math.exp(-((x-13)**2)/12)*55+10);
+    if(di===4&&x>=19)v+=25;v=Math.round(v);const a=clamp(v/110,.06,1);h+=`<div title="${d} ${x}:00 · ${v} boardings" style="background:color-mix(in srgb,var(--accent) ${Math.round(a*100)}%,var(--sunk))"></div>`}});
+  $('#heat').innerHTML=h;
+}
+
+/* ---------------- driver ---------------- */
+$('#drvBus').innerHTML=BUSES.map(b=>`<option>${b.id}</option>`).join('');
+let drvAck={};
+function renderDriver(){const id=$('#drvBus').value;const b=BUSES.find(x=>x.id===id)||BUSES[0];if(!b)return;
+  const nexts=STOPS.map(s=>({s,eta:etaTo(b,s)})).sort((a,c)=>a.eta-c.eta).slice(0,4);
+  const reqN=s=>s.req+(S.myReq&&S.myReq.stop===s.id&&S.myReq.state==='active'?1:0)+(s.id===KIOSK&&S.kiosk?1:0);
+  const firstReq=nexts.find(x=>reqN(x.s)>0);
+  $('#driver').innerHTML=`<div><div class="label" style="color:#8FA9B4;margin-bottom:8px">Upcoming stops · ${b.id}</div>${nexts.map(x=>{const n=reqN(x.s);return `<div class="drv-stop ${n?'req':''}"><span class="eta">${Math.max(1,Math.round(x.eta))}′</span><span class="nm">${x.s.name}</span>${n?`<span class="flag">STOP · ${n} waiting</span>`:'<span style="color:#6E8792;font-size:13px">No request</span>'}</div>`}).join('')}</div>
+   <div class="drv-side"><div class="drv-box"><div class="label">Load</div><div style="font-family:var(--display);font-size:40px;font-weight:700">${b.load}<span style="font-size:20px;color:#8FA9B4">/${b.cap}</span></div></div>
+   <div class="drv-box"><div class="label">Dispatcher</div><div>${S.approvals[0]?esc(S.approvals[0].what):'No new instructions'}</div></div>
+   ${firstReq?`<button class="drv-ack" type="button" id="drvAck">${drvAck[firstReq.s.id]?'✓ Acknowledged':'Acknowledge '+firstReq.s.id}</button>`:'<div class="drv-box" style="color:#8FA9B4">Nothing needs your attention.</div>'}</div>`;
+  const a=$('#drvAck');if(a)a.onclick=()=>{drvAck[firstReq.s.id]=true;log('info',`${b.id} driver acknowledged request at ${firstReq.s.id}`);renderDriver()}}
+$('#drvBus').onchange=renderDriver;
+
+/* ---------------- loop ---------------- */
+function renderView(nav){
+  if(current==='live')renderLive();
+  else if(current==='passenger')renderPassenger();
+  else if(current==='vision'){drawCams();if(nav||!document.activeElement||document.activeElement.id!=='reconStop')renderRecon()}
+  else if(current==='decide'){if(nav)renderDecide(true)}
+  else if(current==='planner'){if(nav)renderPlanner()}
+  else if(current==='res'){if(nav)renderRes()}
+  else if(current==='gaps'){if(nav)renderGaps()}
+  else if(current==='plan'){if(nav)renderPlan()}
+  else if(current==='driver'){const opts=BUSES.map(b=>b.id).join();if($('#drvBus').dataset.o!==opts){const v=$('#drvBus').value;$('#drvBus').innerHTML=BUSES.map(b=>`<option ${b.id===v?'selected':''}>${b.id}</option>`).join('');$('#drvBus').dataset.o=opts}renderDriver()}
+  const t=fmtT(S.t);$('#clock').textContent=t+':'+String(Math.floor(S.t*60%60)).padStart(2,'0');['#ph1clock','#ph2clock','#ph3clock'].forEach(s=>$(s).textContent=t);
+}
+// seed some history
+for(let i=0;i<10;i++)step(.2);
+log('info','Shift B started · 3 buses on T815, 1 bus and 1 van spare at depot');
+log('warn','SMK Sultan Abd Samad dismissal 15:30 · 16 journeys registered for 15:30–16:00');
+log('crit','S9 Perpustakaan UM camera confidence low (rain on lens) · using requests and registrations');
+buildMap();renderNavCount();
+$$('[data-speed]').forEach(b=>b.onclick=()=>{S.speed=+b.dataset.speed;$$('[data-speed]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+setInterval(()=>{if(S.speed){step(S.speed*0.4/60);renderView(false)}},400);
+$('#themeBtn').onclick=()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=dark?'light':'dark'};
+let start='live';const h=location.hash.slice(1);if(h&&$('#v-'+h))start=h;else{try{const v=localStorage.getItem('tp-view');if(v&&$('#v-'+v))start=v}catch(e){}}
+show(start);
+})();
+</script>
+
+</html>
